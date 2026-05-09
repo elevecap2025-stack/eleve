@@ -138,7 +138,14 @@ tr:nth-child(even) td{background:#f8faff}
       <div style="font-size:13px;color:#666;margin-top:4px">Gestao de Premios</div>
     </div>
     <div class="fr"><label class="lbl">Usuario</label><input type="text" id="lu" placeholder="admin"/></div>
-    <div class="fr"><label class="lbl">Senha</label><input type="password" id="lp" placeholder="senha" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+    <div class="fr"><label class="lbl">Senha</label>
+    <div style="position:relative">
+      <input type="password" id="lp" placeholder="senha" onkeydown="if(event.key==='Enter')doLogin()" style="padding-right:2.5rem"/>
+      <button onclick="toggleSenha()" type="button" id="btn-eye"
+        style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#aaa;font-size:18px;padding:0;cursor:pointer">
+        <i class="ti ti-eye" id="eye-icon"></i>
+      </button>
+    </div></div>
     <div id="lerr" style="color:#c0392b;font-size:12px;margin-bottom:.75rem;text-align:center;display:none">Usuario ou senha incorretos</div>
     <button class="btnp" style="width:100%;padding:.7rem;font-size:15px" onclick="doLogin()">
       <i class="ti ti-login" style="margin-right:6px"></i>Entrar
@@ -233,9 +240,21 @@ function showSync(msg,ok,err){
 // ═══════════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════════
+function toggleSenha(){
+  var inp=document.getElementById("lp");
+  var icon=document.getElementById("eye-icon");
+  if(inp.type==="password"){
+    inp.type="text";
+    icon.className="ti ti-eye-off";
+  }else{
+    inp.type="password";
+    icon.className="ti ti-eye";
+  }
+}
 function doLogin(){
   var u=document.getElementById("lu").value;
   var p=document.getElementById("lp").value;
+  u=u.trim();p=p.trim();
   if((u==="admin"&&p==="eleve2024")||(u==="eleve"&&p==="eleve2024")){
     document.getElementById("lerr").style.display="none";
     showSync("Carregando dados...",false);
