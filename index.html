@@ -236,7 +236,7 @@ function showSync(msg,ok,err){
 function doLogin(){
   var u=document.getElementById("lu").value;
   var p=document.getElementById("lp").value;
-  if(u==="admin"&&p==="eleve2024"){
+  if((u==="admin"&&p==="eleve2024")||(u==="eleve"&&p==="eleve2024")){
     document.getElementById("lerr").style.display="none";
     showSync("Carregando dados...",false);
     // Sempre recarrega do Firebase ao fazer login
