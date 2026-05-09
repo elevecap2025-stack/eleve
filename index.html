@@ -239,15 +239,22 @@ function doLogin(){
   if(u==="admin"&&p==="eleve2024"){
     document.getElementById("lerr").style.display="none";
     showSync("Carregando dados...",false);
-    dbLoad().then(function(){
+    // Sempre recarrega do Firebase ao fazer login
+    window._fbLoad().then(function(){
+      console.log("Dados carregados do Firebase:", {
+        emp: DB.emp.length,
+        oc: DB.oc.length,
+        cc: DB.cc.length,
+        pr: DB.pr.length
+      });
       document.getElementById("lgw").style.display="none";
       document.getElementById("app").style.display="flex";
-      showSync("Dados carregados!",true);
-      setTimeout(function(){document.getElementById("sync-bar").style.display="none";},2000);
+      showSync("Dados carregados! ("+DB.emp.length+" colaboradores)",true);
+      setTimeout(function(){document.getElementById("sync-bar").style.display="none";},3000);
       go("dashboard");
     }).catch(function(e){
-      showSync("Erro: "+e.message,false,true);
-      console.error(e);
+      showSync("Erro ao carregar: "+e.message,false,true);
+      console.error("Erro dbLoad:",e);
     });
   }else{
     document.getElementById("lerr").style.display="block";
@@ -264,8 +271,17 @@ function doLogout(){
 // STARTUP — aguarda Firebase ficar pronto
 // ═══════════════════════════════════════
 function startApp(){
-  document.getElementById("loading-screen").style.display="none";
-  document.getElementById("lgw").style.display="flex";
+  // Pre-load data before showing login
+  document.getElementById("load-msg").textContent="Carregando dados...";
+  window._fbLoad().then(function(){
+    console.log("Pre-load OK:", DB.emp.length, "colaboradores");
+    document.getElementById("loading-screen").style.display="none";
+    document.getElementById("lgw").style.display="flex";
+  }).catch(function(e){
+    console.warn("Pre-load falhou (normal se primeiro acesso):", e.message);
+    document.getElementById("loading-screen").style.display="none";
+    document.getElementById("lgw").style.display="flex";
+  });
 }
 if(window._fbReady){
   startApp();
