@@ -12,7 +12,13 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
+// ═══ SEGURANCA ═══
+// false = login antigo (senha fixa no codigo, NAO protege os dados)
+// true  = login real pelo Firebase Authentication (siga o passo a passo antes de ativar)
+var USAR_LOGIN_FIREBASE = false;
+
 var firebaseConfig = {
   apiKey: "AIzaSyAqsd3CV9dCcqO6W1gL2WYkmsQhrrWOX6M",
   authDomain: "eleve-premios.firebaseapp.com",
@@ -50,6 +56,7 @@ window._fbLoad = function(){
     if((!window.DB.motdem || window.DB.motdem.length === 0) && window.initMotDem){
       window.DB.motdem = window.initMotDem();
     }
+    window._dbLoaded = true;
     console.log("Firebase carregado OK:", {
       emp: window.DB.emp.length,
       oc: window.DB.oc.length,
@@ -256,10 +263,10 @@ input:focus-visible,select:focus-visible{outline:none}
       <svg class="lg-login" viewBox="0 0 413.1 337" role="img" aria-label="Eleve Telhas e Perfis Metalicos"><use href="#lg-v"/></svg>
       <div class="lg-app">Gestao de Premios</div>
     </div>
-    <div class="fr"><label class="lbl">Usuario</label><input type="text" id="lu" placeholder="admin"/></div>
+    <div class="fr"><label class="lbl" for="lu">Usuario</label><input type="text" id="lu" placeholder="Usuario" autocomplete="username"/></div>
     <div class="fr"><label class="lbl">Senha</label>
     <div style="position:relative">
-      <input type="password" id="lp" placeholder="senha" onkeydown="if(event.key==='Enter')doLogin()" style="padding-right:2.5rem"/>
+      <input type="password" id="lp" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" style="padding-right:2.5rem"/>
       <button onclick="toggleSenha()" type="button" id="btn-eye"
         style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#aaa;font-size:18px;padding:0;cursor:pointer">
         <i class="ti ti-eye" id="eye-icon"></i>
@@ -269,7 +276,6 @@ input:focus-visible,select:focus-visible{outline:none}
     <button class="btnp" style="width:100%;padding:.75rem;font-size:15px" onclick="doLogin()">
       <i class="ti ti-login" style="margin-right:6px"></i>Entrar
     </button>
-    <div style="text-align:center;margin-top:1rem;font-size:11px;color:#bbb">admin / eleve2024</div>
   </div>
 </div>
 
@@ -292,6 +298,7 @@ input:focus-visible,select:focus-visible{outline:none}
       <button class="nb" id="nb-indices" onclick="go('indices')"><i class="ti ti-adjustments" style="font-size:18px;flex-shrink:0"></i><span class="nl">Indices</span></button>
       <button class="nb" id="nb-motivos" onclick="go('motivos')"><i class="ti ti-tags" style="font-size:18px;flex-shrink:0"></i><span class="nl">Motivos</span></button>
       <button class="nb" id="nb-relatorio" onclick="go('relatorio')"><i class="ti ti-chart-bar" style="font-size:18px;flex-shrink:0"></i><span class="nl">Relatorios</span></button>
+      <button class="nb" id="nb-backup" onclick="go('backup')"><i class="ti ti-database" style="font-size:18px;flex-shrink:0"></i><span class="nl">Backup</span></button>
     </nav>
     <div style="padding:.875rem;border-top:1px solid rgba(255,255,255,.12)">
       <button onclick="doLogout()" style="display:flex;align-items:center;gap:8px;background:none;border:none;color:rgba(255,255,255,.5);font-size:12px">
@@ -310,6 +317,7 @@ input:focus-visible,select:focus-visible{outline:none}
     <div id="p-indices" class="page"></div>
     <div id="p-motivos" class="page"></div>
     <div id="p-relatorio" class="page"></div>
+    <div id="p-backup" class="page"></div>
   </div>
 </div>
 
@@ -330,6 +338,11 @@ function dbLoad(){
 }
 
 function dbSave(){
+  if(!window._dbLoaded){
+    showSync("Os dados nao foram carregados do servidor. Recarregue a pagina antes de salvar.",false,true);
+    console.error("dbSave bloqueado: dados nao carregados (protecao contra sobrescrever a base)");
+    return;
+  }
   clearTimeout(SAVE_TIMER);
   showSync("Salvando...",false);
   SAVE_TIMER=setTimeout(function(){
@@ -373,34 +386,56 @@ function toggleSenha(){
   }
 }
 function doLogin(){
-  var u=document.getElementById("lu").value;
+  var u=document.getElementById("lu").value.trim();
   var p=document.getElementById("lp").value;
-  u=u.trim();p=p.trim();
-  if((u==="admin"&&p==="eleve2024")||(u==="eleve"&&p==="eleve2024")){
-    document.getElementById("lerr").style.display="none";
-    showSync("Carregando dados...",false);
-    // Sempre recarrega do Firebase ao fazer login
-    window._fbLoad().then(function(){
-      console.log("Dados carregados do Firebase:", {
-        emp: DB.emp.length,
-        oc: DB.oc.length,
-        cc: DB.cc.length,
-        pr: DB.pr.length
-      });
-      document.getElementById("lgw").style.display="none";
-      document.getElementById("app").style.display="flex";
-      showSync("Dados carregados! ("+DB.emp.length+" colaboradores)",true);
-      setTimeout(function(){document.getElementById("sync-bar").style.display="none";},3000);
-      go("dashboard");
+  var err=document.getElementById("lerr");
+  err.style.display="none";
+  function falha(msg){err.textContent=msg;err.style.display="block";}
+  if(window.USAR_LOGIN_FIREBASE){
+    if(!u||!p){falha("Informe e-mail e senha.");return;}
+    showSync("Entrando...",false);
+    firebase.auth().signInWithEmailAndPassword(u,p).then(function(){
+      entrarApp();
     }).catch(function(e){
-      showSync("Erro ao carregar: "+e.message,false,true);
-      console.error("Erro dbLoad:",e);
+      document.getElementById("sync-bar").style.display="none";
+      var c=e&&e.code||"";
+      falha(c.indexOf("too-many-requests")>=0?"Muitas tentativas. Aguarde alguns minutos.":
+            c.indexOf("network")>=0?"Sem conexao com o servidor.":"E-mail ou senha incorretos");
     });
-  }else{
-    document.getElementById("lerr").style.display="block";
+    return;
   }
+  // Modo antigo (senha fixa no navegador) - usar apenas ate ativar o login do Firebase
+  if((u==="admin"||u==="eleve")&&p.trim()==="eleve2024"){entrarApp();}
+  else{falha("Usuario ou senha incorretos");}
+}
+// Carrega os dados do Firebase e abre o sistema
+function entrarApp(){
+  showSync("Carregando dados...",false);
+  return window._fbLoad().then(function(){
+    document.getElementById("loading-screen").style.display="none";
+    document.getElementById("lgw").style.display="none";
+    document.getElementById("app").style.display="flex";
+    document.getElementById("lp").value="";
+    showSync("Dados carregados! ("+DB.emp.length+" colaboradores)",true);
+    setTimeout(function(){document.getElementById("sync-bar").style.display="none";},3000);
+    go("dashboard");
+    if(window.USAR_LOGIN_FIREBASE&&window._startPing)window._startPing();
+    if(typeof autoBackup==="function")setTimeout(autoBackup,1500);
+  }).catch(function(e){
+    showSync("Erro ao carregar os dados: "+e.message,false,true);
+    console.error("Erro ao carregar:",e);
+    document.getElementById("loading-screen").style.display="none";
+    document.getElementById("lgw").style.display="flex";
+  });
 }
 function doLogout(){
+  if(window.USAR_LOGIN_FIREBASE&&window.firebase&&firebase.auth){firebase.auth().signOut().catch(function(){});}
+  if(window._pingInterval){clearInterval(window._pingInterval);window._pingInterval=null;}
+  // limpa os dados da memoria ao sair
+  window._dbLoaded=false;
+  Object.keys(DB).forEach(function(k){DB[k]=[];});
+  if(typeof killCH==="function")killCH();
+  document.querySelectorAll(".page").forEach(function(pgEl){pgEl.innerHTML="";});
   document.getElementById("app").style.display="none";
   document.getElementById("lgw").style.display="flex";
   document.getElementById("lu").value="";
@@ -411,19 +446,23 @@ function doLogout(){
 // STARTUP — aguarda Firebase ficar pronto
 // ═══════════════════════════════════════
 function startApp(){
-  // Inicia o ping para manter a base sempre ativa
+  var ls=document.getElementById("loading-screen");
+  if(window.USAR_LOGIN_FIREBASE){
+    // Nenhum dado e lido antes do login
+    document.querySelector("label[for='lu']")&&(document.querySelector("label[for='lu']").textContent="E-mail");
+    document.getElementById("lu").placeholder="seu.email@eleve.com.br";
+    document.getElementById("lu").type="email";
+    var primeira=true;
+    firebase.auth().onAuthStateChanged(function(user){
+      if(!primeira)return;primeira=false;
+      if(user){entrarApp();}   // sessao ainda valida: entra direto
+      else{ls.style.display="none";document.getElementById("lgw").style.display="flex";}
+    });
+    return;
+  }
   if(window._startPing)window._startPing();
-  // Pre-load data before showing login
-  document.getElementById("load-msg").textContent="Carregando dados...";
-  window._fbLoad().then(function(){
-    console.log("Pre-load OK:", DB.emp.length, "colaboradores");
-    document.getElementById("loading-screen").style.display="none";
-    document.getElementById("lgw").style.display="flex";
-  }).catch(function(e){
-    console.warn("Pre-load falhou (normal se primeiro acesso):", e.message);
-    document.getElementById("loading-screen").style.display="none";
-    document.getElementById("lgw").style.display="flex";
-  });
+  ls.style.display="none";
+  document.getElementById("lgw").style.display="flex";
 }
 if(window._fbReady){
   startApp();
@@ -664,7 +703,7 @@ function go(p){
   document.getElementById("p-"+p).classList.add("active");
   document.getElementById("nb-"+p).classList.add("on");
   pg=p;
-  ({dashboard:rDash,centros:rCC,employees:rEmp,monitor:rMon,"5s":r5S,lancamento:rLanc,premios:rPrem,indices:rIdx,motivos:rMotivos,relatorio:rRel})[p]();
+  ({dashboard:rDash,centros:rCC,employees:rEmp,monitor:rMon,"5s":r5S,lancamento:rLanc,premios:rPrem,indices:rIdx,motivos:rMotivos,relatorio:rRel,backup:function(){BKP_LISTA=null;rBkp();}})[p]();
 }
 function toggleSB(){
   sbOpen=!sbOpen;
@@ -672,20 +711,6 @@ function toggleSB(){
   document.querySelectorAll(".nl").forEach(function(el){el.style.display=sbOpen?"":"none";});
   document.getElementById("sbt").style.display=sbOpen?"":"none";
   document.getElementById("sbic").className=sbOpen?"ti ti-chevron-left":"ti ti-chevron-right";
-}
-function doLogin(){
-  var u=document.getElementById("lu").value,p=document.getElementById("lp").value;
-  if(u==="admin"&&p==="eleve2024"){
-    document.getElementById("lgw").style.display="none";
-    document.getElementById("app").style.display="flex";
-    go("dashboard");
-  }else{document.getElementById("lerr").style.display="block";}
-}
-function doLogout(){
-  document.getElementById("app").style.display="none";
-  document.getElementById("lgw").style.display="flex";
-  document.getElementById("lu").value="";
-  document.getElementById("lp").value="";
 }
 
 // Delegated click handlers for edit/delete buttons
@@ -2349,6 +2374,7 @@ function rMon(){
     +"<select id='mon-mes' onchange='rMon()' style='border:none;outline:none;box-shadow:none;font-size:13px;color:"+B+";font-weight:700;background:transparent;width:auto;padding:0'>"
     +MOS.map(function(m,i){var v=selAno+"-"+String(i+1).padStart(2,"0");return "<option value='"+v+"'"+(v===selMes?" selected":"")+">"+m+"</option>";}).join("")
     +"</select></div>"
+    +"<button class='btng btn-ic' onclick='gerarMonitorPDF()'><i class='ti ti-file-download'></i>Relatorio PDF</button>"
     +"<button class='btnp btn-ic' onclick=\"go('employees');setTimeout(novoEmp,30)\"><i class='ti ti-user-plus'></i>Novo colaborador</button>"
     +"</div></div>"
 
@@ -2396,65 +2422,254 @@ function rMon(){
     +chartCard("Movimentacoes - "+mlb,B,"ti-list-details","<div style='max-height:250px;overflow-y:auto'>"+movHTML+"</div>")
     +"</div>";
 
-  var dlP=typeof ChartDataLabels!=="undefined"?[ChartDataLabels]:[];
-  var dlBar={display:function(c){return c.dataset.data[c.dataIndex]>0;},anchor:"end",align:"top",offset:3,
-    color:function(c){return c.dataset.dlc;},font:{size:12.5,weight:800}};
-  var sc={y:{beginAtZero:true,grace:"15%",ticks:{precision:0,font:{size:11},color:"#7a838c"},grid:{color:"#eef2f6"},border:{display:false}},
-          x:{ticks:{font:{size:12,weight:600},color:"#555"},grid:{display:false}}};
-  CH.mquadro=new Chart(document.getElementById("ch-mquadro"),{type:"bar",plugins:dlP,
-    data:{labels:lbl,datasets:[{label:"Colaboradores",data:aQuadro,backgroundColor:vGrad(BL),hoverBackgroundColor:BL,dlc:B,borderRadius:6,borderSkipped:false,maxBarThickness:60}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:dlBar},scales:sc}});
-  CH.mmov=new Chart(document.getElementById("ch-mmov"),{type:"bar",plugins:dlP,
-    data:{labels:lbl,datasets:[
-      {label:"Contratados",data:aContr,backgroundColor:vGrad(GRN),hoverBackgroundColor:GRN,dlc:GRN,borderRadius:6,borderSkipped:false,maxBarThickness:36},
-      {label:"Demitidos",data:aDem,backgroundColor:vGrad(RED),hoverBackgroundColor:RED,dlc:RED,borderRadius:6,borderSkipped:false,maxBarThickness:36}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:"top",labels:{boxWidth:12,font:{size:12},padding:10,
-        generateLabels:function(ch){return ch.data.datasets.map(function(ds,i){return{text:ds.label,fillStyle:ds.hoverBackgroundColor,strokeStyle:ds.hoverBackgroundColor,lineWidth:0,hidden:!ch.isDatasetVisible(i),datasetIndex:i};});}}},
-        datalabels:dlBar},scales:sc}});
-  function pie(cid,bd){
-    var el=document.getElementById(cid);if(!el)return null;
-    return new Chart(el,{type:"doughnut",plugins:dlP,
-      data:{labels:bd.labels,datasets:[{data:bd.values,backgroundColor:segGrad(bd.colors),hoverBackgroundColor:bd.colors,borderWidth:2,borderColor:"#fff",hoverOffset:6}]},
-      options:{responsive:true,maintainAspectRatio:false,cutout:"50%",layout:{padding:4},
-        plugins:{legend:{position:"bottom",labels:{boxWidth:10,font:{size:11},padding:6,
-          generateLabels:function(chart){var l=Chart.overrides.doughnut.plugins.legend.labels.generateLabels(chart);l.forEach(function(it,i){it.fillStyle=bd.colors[i%bd.colors.length];});return l;}}},
-          tooltip:{callbacks:{label:function(c){var t=c.dataset.data.reduce(function(a,b){return a+b;},0);return c.label+": "+c.raw+" ("+Math.round(c.raw/t*100)+"%)";}}},
-          datalabels:{color:"#fff",font:{size:13,weight:800},textStrokeColor:"rgba(0,0,0,.25)",textStrokeWidth:2}}}});
+  window._monStats={selAno:selAno,selMes:selMes,mlb:mlb,meses:meses,lbl:lbl,ativos:ativos,inativos:inativos,qMes:qMes,
+    cMes:cMes.length,dMes:dMes.length,cAno:cAno.length,dAno:dAno.length,turn:turn,absMes:absMes,absAno:absAno,absAnoF:absAnoF,duAno:duAno,
+    aQuadro:aQuadro,aContr:aContr,aDem:aDem,aAbs:aAbs,aAbsAcc:aAbsAcc,ccAbs:ccAbs,rankAbs:rankAbs,bdMes:bdMes,bdAno:bdAno,movs:movs};
+  var M=window._monStats;
+  CH.mquadro=new Chart(document.getElementById("ch-mquadro"),monCfgQuadro(M,1));
+  CH.mmov=new Chart(document.getElementById("ch-mmov"),monCfgMov(M,1));
+  CH.mabs=new Chart(document.getElementById("ch-mabs"),monCfgAbs(M,1));
+  var cvcc=document.getElementById("ch-mabscc");if(cvcc)CH.mabscc=new Chart(cvcc,monCfgAbsCC(M,1));
+  var e1=document.getElementById("ch-mmotm");if(e1)CH.mmotm=new Chart(e1,monCfgPie(bdMes,1));
+  var e2=document.getElementById("ch-mmota");if(e2)CH.mmota=new Chart(e2,monCfgPie(bdAno,1));
+}
+
+// ---- graficos do Monitoramento (tela e PDF; s = escala das fontes) ----
+function pctF2(v){return (v||0).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:2})+"%";}
+function monLeg(s){return{position:"top",labels:{boxWidth:12*s,font:{size:12*s},padding:10*s,
+  generateLabels:function(ch){return ch.data.datasets.map(function(ds,i){var c=ds.hoverBackgroundColor||ds.borderColor;return{text:ds.label,fillStyle:c,strokeStyle:c,lineWidth:0,hidden:!ch.isDatasetVisible(i),datasetIndex:i};});}}};}
+function monDL(s,fmt){return{display:function(c){return c.dataset.data[c.dataIndex]>0;},anchor:"end",align:"top",offset:3*s,
+  color:function(c){return c.dataset.dlc;},font:{size:12.5*s,weight:800},formatter:fmt};}
+function monBase(s){return{responsive:s===1,maintainAspectRatio:false,animation:s===1?{}:false};}
+function monX(s){return{ticks:{font:{size:12*s,weight:600},color:"#555"},grid:{display:false}};}
+function monCfgQuadro(M,s){
+  return{type:"bar",plugins:relDL(),
+    data:{labels:M.lbl,datasets:[{label:"Colaboradores",data:M.aQuadro,backgroundColor:vGrad(BL),hoverBackgroundColor:BL,dlc:B,borderRadius:6*s,borderSkipped:false,maxBarThickness:60*s}]},
+    options:Object.assign(monBase(s),{plugins:{legend:{display:false},datalabels:monDL(s)},
+      scales:{y:{beginAtZero:true,grace:"15%",ticks:{precision:0,font:{size:11*s},color:"#7a838c"},grid:{color:"#eef2f6"},border:{display:false}},x:monX(s)}})};
+}
+function monCfgMov(M,s){
+  return{type:"bar",plugins:relDL(),
+    data:{labels:M.lbl,datasets:[
+      {label:"Contratados",data:M.aContr,backgroundColor:vGrad(GRN),hoverBackgroundColor:GRN,dlc:GRN,borderRadius:6*s,borderSkipped:false,maxBarThickness:36*s},
+      {label:"Demitidos",data:M.aDem,backgroundColor:vGrad(RED),hoverBackgroundColor:RED,dlc:RED,borderRadius:6*s,borderSkipped:false,maxBarThickness:36*s}]},
+    options:Object.assign(monBase(s),{plugins:{legend:monLeg(s),datalabels:monDL(s)},
+      scales:{y:{beginAtZero:true,grace:"15%",ticks:{precision:0,font:{size:11*s},color:"#7a838c"},grid:{color:"#eef2f6"},border:{display:false}},x:monX(s)}})};
+}
+function monCfgAbs(M,s){
+  var ORG="#d35400",DK="#7a2f00";
+  return{type:"bar",plugins:relDL(),
+    data:{labels:M.lbl,datasets:[
+      {type:"line",label:"Acumulado do ano",data:M.aAbsAcc.map(function(v){return +v.toFixed(2);}),order:0,borderColor:DK,backgroundColor:DK,
+        borderDash:[6*s,4*s],borderWidth:2.2*s,pointRadius:3*s,pointBackgroundColor:"#fff",pointBorderColor:DK,pointBorderWidth:2*s,tension:.3,
+        datalabels:{display:function(c){return c.dataIndex===c.dataset.data.length-1;},align:"top",anchor:"center",offset:8*s,color:"#fff",backgroundColor:DK,borderRadius:4*s,
+          padding:{top:2*s,bottom:1*s,left:5*s,right:5*s},font:{size:11.5*s,weight:800},formatter:function(v){return "Ano "+pctF2(v);}}},
+      {label:"Absenteismo do mes",data:M.aAbs.map(function(r){return +r.pct.toFixed(2);}),order:1,backgroundColor:vGrad(ORG),hoverBackgroundColor:ORG,dlc:ORG,borderRadius:6*s,borderSkipped:false,maxBarThickness:60*s,
+        datalabels:monDL(s,function(v){return pctF2(v);})}]},
+    options:Object.assign(monBase(s),{layout:{padding:{right:10*s}},
+      plugins:{legend:monLeg(s),
+        tooltip:{callbacks:{label:function(c){var r=M.aAbs[c.dataIndex];if(c.dataset.type==="line")return "Acumulado do ano ate "+M.lbl[c.dataIndex]+": "+pctF2(c.raw);return ["Absenteismo do mes: "+pctF2(r.pct),r.faltas+" faltas · "+r.atrasos+" atrasos","Colaboradores: "+r.hc+" · Dias uteis: "+r.du];}}}},
+      scales:{y:{beginAtZero:true,grace:"25%",ticks:{font:{size:11*s},color:"#7a838c",callback:function(v){return v+"%";}},grid:{color:"#eef2f6"},border:{display:false}},x:monX(s)}})};
+}
+function monCfgAbsCC(M,s){
+  function hg(c,l){return function(ctx){var ch=ctx.chart,a=ch.chartArea;if(!a)return c;var g=ch.ctx.createLinearGradient(a.left,0,a.right,0);g.addColorStop(0,shade(c,l));g.addColorStop(1,shade(c,-.05));return g;};}
+  var cc=M.ccAbs;
+  return{type:"bar",plugins:relDL(),
+    data:{labels:cc.map(function(r){return r.lb;}),datasets:[
+      {label:"Mes ("+M.mlb+")",data:cc.map(function(r){return +r.pct.toFixed(2);}),dlc:"#d35400",backgroundColor:hg("#d35400",.6),hoverBackgroundColor:"#d35400",borderRadius:5*s,borderSkipped:false,maxBarThickness:18*s},
+      {label:"Ano ("+M.selAno+")",data:cc.map(function(r){return +r.ano.pct.toFixed(2);}),dlc:"#7a2f00",backgroundColor:hg("#7a2f00",.55),hoverBackgroundColor:"#7a2f00",borderRadius:5*s,borderSkipped:false,maxBarThickness:18*s}]},
+    options:Object.assign(monBase(s),{indexAxis:"y",layout:{padding:{right:55*s}},
+      plugins:{legend:monLeg(s),
+        tooltip:{callbacks:{label:function(c){var r=cc[c.dataIndex];return c.datasetIndex===0?["Mes: "+pctF2(r.pct),r.faltas+" faltas · "+r.hc+" colaboradores"]:["Ano: "+pctF2(r.ano.pct),r.ano.faltas+" faltas no ano"];}}},
+        datalabels:{anchor:"end",align:"right",offset:4*s,color:function(c){return c.dataset.dlc;},font:{size:12*s,weight:800},formatter:function(v){return pctF2(v);}}},
+      scales:{x:{beginAtZero:true,ticks:{font:{size:11*s},color:"#7a838c",callback:function(v){return v+"%";}},grid:{color:"#eef2f6"},border:{display:false}},
+              y:{ticks:{font:{size:12*s,weight:600},color:"#555"},grid:{display:false}}}})};
+}
+function monCfgPie(bd,s){
+  if(!bd||!bd.labels.length)return null;
+  return{type:"doughnut",plugins:relDL(),
+    data:{labels:bd.labels,datasets:[{data:bd.values,backgroundColor:segGrad(bd.colors),hoverBackgroundColor:bd.colors,borderWidth:2*s,borderColor:"#fff",hoverOffset:6}]},
+    options:Object.assign(monBase(s),{cutout:"50%",layout:{padding:4*s},
+      plugins:{legend:{position:"bottom",labels:{boxWidth:10*s,font:{size:11*s},padding:6*s,
+          generateLabels:function(chart){var l=Chart.overrides.doughnut.plugins.legend.labels.generateLabels(chart);l.forEach(function(it,i){it.fillStyle=bd.colors[i%bd.colors.length];it.strokeStyle=bd.colors[i%bd.colors.length];});return l;}}},
+        tooltip:{callbacks:{label:function(c){var t=c.dataset.data.reduce(function(a,b){return a+b;},0);return c.label+": "+c.raw+" ("+Math.round(c.raw/t*100)+"%)";}}},
+        datalabels:{color:"#fff",font:{size:13*s,weight:800},textStrokeColor:"rgba(0,0,0,.25)",textStrokeWidth:2}}})};
+}
+
+// ═══ KIT PDF PADRAO ELEVE (cabecalho com logo, paineis, tabelas, rodape) ═══
+function mkPdfKit(titulo,periodo){
+  var doc=new window.jspdf.jsPDF({unit:"mm",format:"a4",orientation:"landscape",compress:true});
+  var K={doc:doc,W:297,H:210,mg:12,BANDH:27,PX:7};
+  K.cw=K.W-K.mg*2;
+  var C=K.C={ink:[30,32,36],b:[11,78,131],bl:[18,125,203],red:[192,57,43],grn:[26,122,74],gld:[230,168,23],pur:[123,63,160],org:[211,84,0],dk:[122,47,0],line:[226,231,238],txt:[60,60,60],mut:[140,140,140]};
+  function fill(c){doc.setFillColor(c[0],c[1],c[2]);}
+  function txt(c){doc.setTextColor(c[0],c[1],c[2]);}
+  function font(sz,b){doc.setFont("helvetica",b?"bold":"normal");doc.setFontSize(sz);}
+  K.fill=fill;K.txt=txt;K.font=font;
+  var agora=new Date(),gerado=agora.toLocaleDateString("pt-BR")+" às "+agora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  K.header=function(){
+    fill(C.ink);doc.rect(0,0,K.W,K.BANDH,"F");fill(C.bl);doc.rect(0,K.BANDH,K.W,1.3,"F");
+    if(window._logoPNG)doc.addImage(window._logoPNG,"PNG",K.mg,6.5,64.4,14);
+    else{font(18,true);txt([255,255,255]);doc.text("ELEVE",K.mg,16);}
+    font(15,true);txt([255,255,255]);doc.text(titulo,K.W-K.mg,11.5,{align:"right"});
+    font(8.5);txt([205,212,222]);doc.text(periodo,K.W-K.mg,17.5,{align:"right"});
+    font(7);txt([165,175,190]);doc.text("Gerado em "+gerado,K.W-K.mg,22,{align:"right"});
+    return K.BANDH+8;
+  };
+  K.section=function(t,y,c){fill(c||C.b);doc.rect(K.mg,y-3.1,2.2,2.2,"F");font(10.5,true);txt([45,45,45]);doc.text(t,K.mg+4.5,y);};
+  K.panel=function(x,y,w,h){doc.setFillColor(255,255,255);doc.setDrawColor(C.line[0],C.line[1],C.line[2]);doc.setLineWidth(.35);doc.roundedRect(x,y,w,h,2,2,"FD");};
+  K.kpi=function(x,y,w,h,lb,val,sub,c){
+    K.panel(x,y,w,h);fill(c);doc.rect(x,y,w,1.2,"F");
+    font(6.2,true);txt(C.mut);var lbs=doc.splitTextToSize(lb.toUpperCase(),w-5).slice(0,2);
+    doc.text(lbs,x+2.8,y+5.4,{lineHeightFactor:1.15});
+    var vy=lbs.length>1?y+14.6:y+12.4;
+    font(12.5,true);txt(c);doc.text(String(val),x+2.8,vy);
+    if(sub){font(6);txt(C.mut);var ls=doc.splitTextToSize(sub,w-5);doc.text(ls[0],x+2.8,vy+4.4);}
+  };
+  K.chartImg=function(cfg,wmm,hmm){
+    if(!cfg)return null;
+    var cv=document.createElement("canvas");cv.width=Math.round(wmm*K.PX);cv.height=Math.round(hmm*K.PX);
+    cv.style.position="fixed";cv.style.left="-99999px";document.body.appendChild(cv);
+    var ch=new Chart(cv,cfg);var img=ch.toBase64Image();ch.destroy();cv.remove();return img;
+  };
+  K.chartPanel=function(cfg,x,y,w,h,t,c,nota){
+    K.panel(x,y,w,h);font(9,true);txt(c);doc.text(t,x+4,y+6.5);
+    if(nota){font(7);txt(C.mut);doc.text(nota,x+w-4,y+6.5,{align:"right"});}
+    doc.setDrawColor(C.line[0],C.line[1],C.line[2]);doc.setLineWidth(.25);doc.line(x+4,y+8.8,x+w-4,y+8.8);
+    var aw=w-8,ah=h-13;var img=typeof cfg==="function"?K.chartImg(cfg(aw,ah),aw,ah):K.chartImg(cfg,aw,ah);
+    if(!img){font(8.5);txt([185,185,185]);doc.text("Sem dados no período",x+w/2,y+h/2,{align:"center"});return;}
+    doc.addImage(img,"PNG",x+4,y+10.5,aw,ah);
+  };
+  K.table=function(y,cols,rows,opt){
+    opt=opt||{};var rh=opt.rh||5.6,x=opt.x||K.mg,tw=cols.reduce(function(a,c){return a+c.w;},0);
+    function head(){
+      fill(C.b);doc.rect(x,y,tw,rh+.6,"F");font(7.3,true);txt([255,255,255]);
+      var cx=x;cols.forEach(function(c){doc.text(c.h,c.al==="r"?cx+c.w-2:c.al==="c"?cx+c.w/2:cx+2,y+rh/2+1.6,{align:c.al==="r"?"right":c.al==="c"?"center":"left"});cx+=c.w;});
+      y+=rh+.6;
+    }
+    head();
+    rows.forEach(function(r,i){
+      if(y+rh>K.H-14){doc.addPage();y=K.header();if(opt.titulo)K.section(opt.titulo+" (continuação)",y,opt.cor);y+=4;head();}
+      if(r._total){fill([226,236,246]);doc.rect(x,y,tw,rh+.4,"F");}
+      else if(r._hl){fill([227,240,250]);doc.rect(x,y,tw,rh,"F");}
+      else if(i%2===1){fill([248,250,252]);doc.rect(x,y,tw,rh,"F");}
+      var cx=x;
+      cols.forEach(function(c){
+        var v=r[c.k];v=v===undefined||v===null?"":String(v);
+        font(7.2,r._total||r._hl||c.b);
+        while(v.length>3&&doc.getTextWidth(v)>c.w-3)v=v.slice(0,-2);
+        txt(r._total&&!c.cor?C.b:(c.cor?c.cor(r):C.txt));
+        doc.text(v,c.al==="r"?cx+c.w-2:c.al==="c"?cx+c.w/2:cx+2,y+rh/2+1.5,{align:c.al==="r"?"right":c.al==="c"?"center":"left"});
+        cx+=c.w;
+      });
+      y+=r._total?rh+.4:rh;
+    });
+    doc.setDrawColor(C.line[0],C.line[1],C.line[2]);doc.setLineWidth(.25);doc.line(x,y,x+tw,y);
+    return y;
+  };
+  K.finalizar=function(nome){
+    var n=doc.getNumberOfPages();
+    for(var p=1;p<=n;p++){
+      doc.setPage(p);doc.setDrawColor(C.line[0],C.line[1],C.line[2]);doc.setLineWidth(.3);doc.line(K.mg,K.H-9,K.W-K.mg,K.H-9);
+      font(7.2);txt([160,160,160]);
+      doc.text("Eleve Telhas e Perfis Metálicos - Gestão de Prêmios",K.mg,K.H-5);
+      doc.text(titulo,K.W/2,K.H-5,{align:"center"});
+      doc.text("Página "+p+"/"+n,K.W-K.mg,K.H-5,{align:"right"});
+    }
+    doc.save(nome);
+  };
+  return K;
+}
+
+// ═══ PDF: MONITORAMENTO DE COLABORADORES ═══
+function gerarMonitorPDF(){
+  if(!(window.jspdf&&window.jspdf.jsPDF)||typeof Chart==="undefined"){alert("As bibliotecas ainda estao carregando. Aguarde alguns segundos e tente novamente.");return;}
+  var M=window._monStats;if(!M){alert("Abra a tela de Monitoramento antes de gerar o PDF.");return;}
+  var K=mkPdfKit("Monitoramento de Colaboradores","Mês: "+M.mlb+"  |  Ano: "+M.selAno),doc=K.doc,C=K.C,mg=K.mg,cw=K.cw,gap=3.2;
+  function mesNome(m){return fmtM(m);}
+
+  // ===== PAGINA 1: indicadores e graficos =====
+  var y=K.header();
+  K.section("Indicadores - "+M.mlb,y);y+=3.5;
+  var ks=[
+    ["Total de colaboradores",String(M.ativos),M.inativos+" inativos",C.b],
+    ["Quadro no fim do mês",String(M.qMes),M.mlb,C.bl],
+    ["Contratados no mês",String(M.cMes),M.cAno+" no ano",C.grn],
+    ["Demitidos no mês",String(M.dMes),M.dAno+" no ano",C.red],
+    ["Turnover do mês",pct1(M.turn),M.mlb,C.gld],
+    ["Absenteísmo do mês",pctF2(M.absMes.pct),M.absMes.faltas+" faltas / "+M.absMes.du+" dias úteis",C.org],
+    ["Absenteísmo do ano",pctF2(M.absAno),M.absAnoF+" faltas / "+M.duAno+" dias úteis",C.dk]
+  ];
+  var kw=(cw-gap*6)/7,kh=22;
+  ks.forEach(function(k,i){K.kpi(mg+i*(kw+gap),y,kw,kh,k[0],k[1],k[2],k[3]);});
+  y+=kh+4;
+  var hw=(cw-gap)/2,ph=(K.H-12-y-gap)/2;
+  K.chartPanel(monCfgQuadro(M,1.5),mg,y,hw,ph,"Total de colaboradores por mês - "+M.selAno,C.b);
+  K.chartPanel(monCfgMov(M,1.5),mg+hw+gap,y,hw,ph,"Contratados x Demitidos por mês - "+M.selAno,C.grn);
+  y+=ph+gap;
+  K.chartPanel(monCfgAbs(M,1.5),mg,y,hw,ph,"Absenteísmo por mês e acumulado do ano - "+M.selAno,C.org);
+  K.chartPanel(M.ccAbs.length?monCfgAbsCC(M,1.35):null,mg+hw+gap,y,hw,ph,"Absenteísmo por centro de custo - "+M.mlb+" x "+M.selAno,C.org);
+
+  // ===== PAGINA 2: motivos, movimentacoes e resumo mes a mes =====
+  doc.addPage();y=K.header();
+  K.section("Motivos de saída e movimentações",y,C.red);y+=3.5;
+  var tw=(cw-gap*2)/3,th=64;
+  K.chartPanel(monCfgPie(M.bdMes,1.5),mg,y,tw,th,"Motivos de saída - "+M.mlb,C.red);
+  K.chartPanel(monCfgPie(M.bdAno,1.5),mg+tw+gap,y,tw,th,"Motivos de saída - "+M.selAno,C.red);
+  var mx=mg+2*(tw+gap);
+  K.panel(mx,y,tw,th);K.font(9,true);K.txt(C.b);doc.text("Movimentações - "+M.mlb,mx+4,y+6.5);
+  doc.setDrawColor(C.line[0],C.line[1],C.line[2]);doc.setLineWidth(.25);doc.line(mx+4,y+8.8,mx+tw-4,y+8.8);
+  var my=y+14,maxL=Math.floor((th-16)/7.2);
+  if(!M.movs.length){K.font(8.5);K.txt([185,185,185]);doc.text("Sem admissões ou demissões no mês",mx+tw/2,y+th/2,{align:"center"});}
+  M.movs.slice(0,maxL).forEach(function(mv){
+    var ad=mv.t==="c",cor=ad?C.grn:C.red;
+    K.fill(cor);doc.roundedRect(mx+4,my-3.2,2.6,2.6,.5,.5,"F");
+    K.font(7.6,true);K.txt([40,40,40]);
+    var nm=mv.e.nome;while(nm.length>3&&doc.getTextWidth(nm)>tw-12)nm=nm.slice(0,-2);
+    doc.text(nm,mx+8.5,my-.9);
+    K.font(6.6);K.txt(C.mut);
+    doc.text((ad?"Admissão":"Demissão")+" em "+fmtD(mv.d)+(ad?"":" · "+motDemNome(mv.e.motdem)),mx+8.5,my+2.4);
+    my+=7.2;
+  });
+  if(M.movs.length>maxL){K.font(7);K.txt(C.mut);doc.text("+ "+(M.movs.length-maxL)+" movimentações",mx+8.5,my-1);}
+  y+=th+8;
+
+  K.section("Resumo mês a mês - "+M.selAno,y);y+=3;
+  var colsR=[
+    {h:"Mês",k:"mes",w:34,b:true,cor:function(){return C.b;}},{h:"Quadro (fim do mês)",k:"q",w:32,al:"c"},
+    {h:"Contratados",k:"c",w:26,al:"c",cor:function(){return C.grn;}},{h:"Demitidos",k:"d",w:24,al:"c",cor:function(){return C.red;}},
+    {h:"Faltas",k:"f",w:22,al:"c"},{h:"Atrasos",k:"a",w:22,al:"c"},{h:"Colaboradores no mês",k:"hc",w:36,al:"c"},
+    {h:"Dias úteis",k:"du",w:22,al:"c"},{h:"Absenteísmo do mês",k:"abs",w:30,al:"r",cor:function(){return C.org;}}
+  ];
+  colsR.push({h:"Acumulado do ano",k:"acc",w:cw-colsR.reduce(function(a,c){return a+c.w;},0),al:"r",cor:function(){return C.dk;}});
+  var rowsR=M.meses.map(function(m,i){var r=M.aAbs[i];
+    return{mes:mesNome(m),q:M.aQuadro[i],c:M.aContr[i],d:M.aDem[i],f:r.faltas,a:r.atrasos,hc:r.hc,du:r.du,abs:pctF2(r.pct),acc:pctF2(M.aAbsAcc[i]),_hl:m===M.selMes};});
+  var sum=function(arr){return arr.reduce(function(a,b){return a+b;},0);};
+  rowsR.push({_total:true,mes:"Total "+M.selAno,q:M.aQuadro.length?M.aQuadro[M.aQuadro.length-1]:0,c:sum(M.aContr),d:sum(M.aDem),
+    f:sum(M.aAbs.map(function(r){return r.faltas;})),a:sum(M.aAbs.map(function(r){return r.atrasos;})),hc:"",du:M.duAno,abs:"",acc:pctF2(M.absAno)});
+  K.table(y,colsR,rowsR,{rh:5.1,titulo:"Resumo mês a mês - "+M.selAno});
+
+  // ===== PAGINA 3+: absenteismo por centro de custo e por colaborador =====
+  doc.addPage();y=K.header();
+  if(M.ccAbs.length){
+    K.section("Absenteísmo por centro de custo - "+M.mlb+" x "+M.selAno,y,C.org);y+=3;
+    y=K.table(y,[
+      {h:"Centro de custo",k:"lb",w:110,b:true,cor:function(){return C.b;}},{h:"Colaboradores no mês",k:"hc",w:36,al:"c"},
+      {h:"Faltas no mês",k:"f",w:28,al:"c"},{h:"Absenteísmo do mês",k:"pm",w:34,al:"r",cor:function(){return C.org;}},
+      {h:"Faltas no ano",k:"fa",w:28,al:"c"},{h:"Absenteísmo do ano",k:"pa",w:cw-110-36-28-34-28,al:"r",cor:function(){return C.dk;}}
+    ],M.ccAbs.map(function(r){return{lb:r.lb,hc:r.hc,f:r.faltas,pm:pctF2(r.pct),fa:r.ano.faltas,pa:pctF2(r.ano.pct)};}),{rh:5.4,titulo:"Absenteísmo por centro de custo"})+9;
   }
-  var ORG="#d35400";
-  CH.mabs=new Chart(document.getElementById("ch-mabs"),{type:"bar",plugins:dlP,
-    data:{labels:lbl,datasets:[
-      {type:"line",label:"Acumulado do ano",data:aAbsAcc.map(function(v){return +v.toFixed(2);}),order:0,borderColor:"#7a2f00",backgroundColor:"#7a2f00",
-        borderDash:[6,4],borderWidth:2.2,pointRadius:3,pointBackgroundColor:"#fff",pointBorderColor:"#7a2f00",pointBorderWidth:2,tension:.3,
-        datalabels:{display:function(c){return c.dataIndex===c.dataset.data.length-1;},align:"top",anchor:"center",offset:8,color:"#fff",backgroundColor:"#7a2f00",borderRadius:4,
-          padding:{top:2,bottom:1,left:5,right:5},font:{size:11.5,weight:800},formatter:function(v){return "Ano "+pctF(v);}}},
-      {label:"Absenteismo do mes",data:aAbs.map(function(r){return +r.pct.toFixed(2);}),order:1,backgroundColor:vGrad(ORG),hoverBackgroundColor:ORG,dlc:ORG,borderRadius:6,borderSkipped:false,maxBarThickness:60,
-        datalabels:Object.assign({},dlBar,{formatter:function(v){return pctF(v);}})}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:"top",labels:{boxWidth:12,font:{size:12},padding:10,
-          generateLabels:function(ch){return ch.data.datasets.map(function(ds,i){return{text:ds.label,fillStyle:ds.hoverBackgroundColor||ds.borderColor,strokeStyle:ds.hoverBackgroundColor||ds.borderColor,lineWidth:0,hidden:!ch.isDatasetVisible(i),datasetIndex:i};});}}},
-        tooltip:{callbacks:{label:function(c){var r=aAbs[c.dataIndex];if(c.dataset.type==="line")return "Acumulado do ano ate "+lbl[c.dataIndex]+": "+pctF(c.raw);return ["Absenteismo do mes: "+pctF(r.pct),r.faltas+" faltas · "+r.atrasos+" atrasos","Colaboradores: "+r.hc+" · Dias uteis: "+r.du];}}}},
-      scales:{y:{beginAtZero:true,grace:"25%",ticks:{font:{size:11},color:"#7a838c",callback:function(v){return v+"%";}},grid:{color:"#eef2f6"},border:{display:false}},
-              x:{ticks:{font:{size:12,weight:600},color:"#555"},grid:{display:false}}}}});
-  var cvcc=document.getElementById("ch-mabscc");
-  if(cvcc)CH.mabscc=new Chart(cvcc,{type:"bar",plugins:dlP,
-    data:{labels:ccAbs.map(function(r){return r.lb;}),datasets:[
-      {label:"Mes ("+mlb+")",data:ccAbs.map(function(r){return +r.pct.toFixed(2);}),dlc:ORG,
-        backgroundColor:function(ctx){var ch=ctx.chart,a=ch.chartArea;if(!a)return ORG;var g=ch.ctx.createLinearGradient(a.left,0,a.right,0);g.addColorStop(0,shade(ORG,.6));g.addColorStop(1,shade(ORG,-.05));return g;},
-        hoverBackgroundColor:ORG,borderRadius:5,borderSkipped:false,maxBarThickness:18},
-      {label:"Ano ("+selAno+")",data:ccAbs.map(function(r){return +r.ano.pct.toFixed(2);}),dlc:"#7a2f00",
-        backgroundColor:function(ctx){var ch=ctx.chart,a=ch.chartArea,c="#7a2f00";if(!a)return c;var g=ch.ctx.createLinearGradient(a.left,0,a.right,0);g.addColorStop(0,shade(c,.55));g.addColorStop(1,shade(c,-.05));return g;},
-        hoverBackgroundColor:"#7a2f00",borderRadius:5,borderSkipped:false,maxBarThickness:18}]},
-    options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
-      plugins:{legend:{position:"top",labels:{boxWidth:12,font:{size:12},padding:10,
-          generateLabels:function(ch){return ch.data.datasets.map(function(ds,i){return{text:ds.label,fillStyle:ds.hoverBackgroundColor,strokeStyle:ds.hoverBackgroundColor,lineWidth:0,hidden:!ch.isDatasetVisible(i),datasetIndex:i};});}}},
-        tooltip:{callbacks:{label:function(c){var r=ccAbs[c.dataIndex];return c.datasetIndex===0?["Mes: "+pctF(r.pct),r.faltas+" faltas · "+r.hc+" colaboradores"]:["Ano: "+pctF(r.ano.pct),r.ano.faltas+" faltas no ano"];}}},
-        datalabels:{anchor:"end",align:"right",offset:4,color:function(c){return c.dataset.dlc;},font:{size:12,weight:800},formatter:function(v){return pctF(v);}}},
-      scales:{x:{beginAtZero:true,ticks:{font:{size:11},color:"#7a838c",callback:function(v){return v+"%";}},grid:{color:"#eef2f6"},border:{display:false}},
-              y:{ticks:{font:{size:12,weight:600},color:"#555"},grid:{display:false}}}}});
-  CH.mmotm=pie("ch-mmotm",bdMes);
-  CH.mmota=pie("ch-mmota",bdAno);
+  K.section("Absenteísmo do ano por colaborador - "+M.selAno+" ("+M.rankAbs.length+" com faltas)",y,C.dk);y+=3;
+  if(!M.rankAbs.length){K.font(9);K.txt([170,170,170]);doc.text("Nenhuma falta registrada no ano.",mg,y+8);}
+  else K.table(y,[
+    {h:"#",k:"i",w:10,al:"c"},{h:"Colaborador",k:"nome",w:78,b:true,cor:function(){return C.b;}},{h:"Função",k:"func",w:52},
+    {h:"Centro de custo",k:"cc",w:40},{h:"Situação",k:"sit",w:22,al:"c",cor:function(r){return r.sit==="Ativo"?C.grn:C.mut;}},
+    {h:"Faltas no ano",k:"f",w:24,al:"c"},{h:"Dias úteis",k:"du",w:21,al:"c"},{h:"Absenteísmo",k:"p",w:cw-10-78-52-40-22-24-21,al:"r",cor:function(){return C.dk;}}
+  ],M.rankAbs.map(function(x,i){var c=x.e.ccid?DB.cc.find(function(k){return k.id===x.e.ccid;}):null;
+    return{i:i+1,nome:x.e.nome,func:x.e.func||"",cc:c?c.cod+" - "+c.desc:"-",sit:isAtivo(x.e)?"Ativo":"Inativo",f:x.f,du:x.du,p:pctF2(x.pct)};}),
+    {rh:5.6,titulo:"Absenteísmo do ano por colaborador - "+M.selAno});
+
+  K.finalizar("monitoramento-colaboradores-"+M.selMes+".pdf");
 }
 
 // Logo em PNG (branca) para o cabecalho do Relatorio PDF
@@ -2915,6 +3130,191 @@ function gerarAnalisePDF(){
     doc.text("Página "+p+"/"+n,W-mg,H-5,{align:"right"});
   }
   doc.save("analise-premio-cartao-"+(st.modo==="mes"?st.selMes:st.selAno)+(st.empNome?"-colaborador":"")+".pdf");
+}
+
+
+// ═══════════════════════════════════════
+// BACKUP AUTOMATICO
+// Copias ficam no proprio Firebase (colecao "eleve", documentos bkp_*),
+// 1 automatica por dia no primeiro acesso, guardando as ultimas BKP_MAX.
+// ═══════════════════════════════════════
+var BKP_MAX=30,BKP_LISTA=null,BKP_ERRO="";
+function bkpDocs(){return _db.collection("eleve");}
+function bkpNovoId(){
+  var d=new Date(),z=function(n){return String(n).padStart(2,"0");};
+  return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+"_"+z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());
+}
+function bkpDataId(id){return id.slice(6,8)+"/"+id.slice(4,6)+"/"+id.slice(0,4)+" "+id.slice(9,11)+":"+id.slice(11,13);}
+function bkpTam(n){return n>=1048576?(n/1048576).toLocaleString("pt-BR",{maximumFractionDigits:1})+" MB":Math.max(1,Math.round(n/1024))+" KB";}
+function bkpListar(){
+  return bkpDocs().doc("_backups").get().then(function(s){BKP_LISTA=s.exists?(s.data().lista||[]):[];return BKP_LISTA;});
+}
+function bkpCriar(tipo){
+  if(!window._dbLoaded)return Promise.reject(new Error("Os dados ainda nao foram carregados."));
+  var id=bkpNovoId(),snap=JSON.parse(JSON.stringify(DB)),cont={};
+  COLECOES.forEach(function(c){cont[c]=(snap[c]||[]).length;});
+  var meta={id:id,criado:new Date().toISOString(),tipo:tipo,cont:cont,tam:JSON.stringify(snap).length};
+  return Promise.all(COLECOES.map(function(c){
+    return bkpDocs().doc("bkp_"+id+"_"+c).set({dados:snap[c]||[],criado:meta.criado});
+  })).then(bkpListar).then(function(lista){
+    lista=lista.filter(function(x){return x.id!==id;});
+    lista.unshift(meta);
+    var sobra=lista.slice(BKP_MAX);lista=lista.slice(0,BKP_MAX);
+    return bkpDocs().doc("_backups").set({lista:lista,atualizado:meta.criado}).then(function(){
+      BKP_LISTA=lista;
+      return Promise.all(sobra.map(function(r){return bkpApagarDocs(r.id);}));
+    });
+  }).then(function(){return meta;});
+}
+function bkpApagarDocs(id){
+  return Promise.all(COLECOES.map(function(c){return bkpDocs().doc("bkp_"+id+"_"+c).delete().catch(function(){});}));
+}
+function bkpLer(id){
+  return Promise.all(COLECOES.map(function(c){return bkpDocs().doc("bkp_"+id+"_"+c).get();})).then(function(snaps){
+    var dados={};
+    snaps.forEach(function(s,i){if(s.exists)dados[COLECOES[i]]=s.data().dados||[];});
+    return dados;
+  });
+}
+// Backup automatico: 1 por dia, no primeiro acesso
+function autoBackup(){
+  if(!window._dbLoaded)return;
+  if(DB.emp.length===0&&DB.oc.length===0)return; // nunca guarda uma base vazia como backup
+  var hojeId=bkpNovoId().slice(0,8);
+  bkpListar().then(function(lista){
+    if(lista.some(function(x){return x.tipo==="auto"&&x.id.slice(0,8)===hojeId;}))return null;
+    return bkpCriar("auto").then(function(){console.log("Backup automatico criado");BKP_ERRO="";});
+  }).then(function(){
+    bkpCopiaLocalSemanal();
+    if(pg==="backup")rBkp();
+  }).catch(function(e){
+    BKP_ERRO=e.message||String(e);
+    console.warn("Backup automatico falhou:",e);
+  });
+}
+// Copia no computador (opcional, 1x por semana) - protege mesmo se a conta do Firebase tiver problema
+function bkpLocalAtivo(){try{return localStorage.getItem("eleve_bkp_local")==="1";}catch(e){return false;}}
+function bkpCopiaLocalSemanal(){
+  if(!bkpLocalAtivo())return;
+  var ult=0;try{ult=parseInt(localStorage.getItem("eleve_bkp_local_ult")||"0",10);}catch(e){}
+  if(Date.now()-ult<7*24*3600*1000)return;
+  bkpBaixarAtual();
+  try{localStorage.setItem("eleve_bkp_local_ult",String(Date.now()));}catch(e){}
+}
+function setBkpLocal(on){try{localStorage.setItem("eleve_bkp_local",on?"1":"0");}catch(e){}rBkp();}
+function bkpDownload(obj,nome){
+  var blob=new Blob([JSON.stringify(obj)],{type:"application/json"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=nome;
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
+}
+function bkpPacote(dados,origem){return{sistema:"Eleve - Gestao de Premios",versao:1,origem:origem,gerado:new Date().toISOString(),colecoes:COLECOES,dados:dados};}
+function bkpBaixarAtual(){
+  if(!window._dbLoaded){alert("Os dados ainda nao foram carregados.");return;}
+  bkpDownload(bkpPacote(DB,"dados atuais"),"backup-eleve-"+bkpNovoId()+".json");
+}
+function bkpBaixar(id){
+  showSync("Preparando download...",false);
+  bkpLer(id).then(function(d){
+    bkpDownload(bkpPacote(d,"backup "+id),"backup-eleve-"+id+".json");
+    showSync("Download iniciado",true);
+    setTimeout(function(){document.getElementById("sync-bar").style.display="none";},2500);
+  }).catch(function(e){showSync("Erro: "+e.message,false,true);});
+}
+function bkpAgora(){
+  showSync("Criando backup...",false);
+  bkpCriar("manual").then(function(){
+    showSync("Backup criado",true);BKP_ERRO="";
+    setTimeout(function(){document.getElementById("sync-bar").style.display="none";},2500);rBkp();
+  }).catch(function(e){BKP_ERRO=e.message;showSync("Erro no backup: "+e.message,false,true);rBkp();});
+}
+// Restaura: antes cria um backup de seguranca do estado atual
+function bkpAplicar(dados,origem){
+  var n=(dados.emp||[]).length,m=(dados.oc||[]).length;
+  if(!confirm("Restaurar "+origem+"?\n\nColaboradores: "+n+"  |  Lancamentos: "+m+"\n\nOs dados atuais serao substituidos. Antes disso, um backup de seguranca do estado atual sera criado automaticamente."))return;
+  showSync("Criando backup de seguranca...",false);
+  bkpCriar("antes-restauracao").then(function(){
+    COLECOES.forEach(function(c){if(Array.isArray(dados[c]))DB[c]=dados[c];});
+    showSync("Restaurando...",false);
+    return window._fbSave();
+  }).then(function(){
+    showSync("Backup restaurado com sucesso",true);
+    setTimeout(function(){document.getElementById("sync-bar").style.display="none";},3000);
+    rBkp();
+  }).catch(function(e){showSync("Erro ao restaurar: "+e.message,false,true);});
+}
+function bkpRestaurar(id){
+  showSync("Lendo backup...",false);
+  bkpLer(id).then(function(d){
+    document.getElementById("sync-bar").style.display="none";
+    if(!d.emp){alert("Backup incompleto ou nao encontrado.");return;}
+    bkpAplicar(d,"o backup de "+bkpDataId(id));
+  }).catch(function(e){showSync("Erro: "+e.message,false,true);});
+}
+function bkpExcluir(id){
+  if(!confirm("Excluir o backup de "+bkpDataId(id)+"?"))return;
+  bkpListar().then(function(lista){
+    lista=lista.filter(function(x){return x.id!==id;});
+    return bkpDocs().doc("_backups").set({lista:lista,atualizado:new Date().toISOString()}).then(function(){BKP_LISTA=lista;return bkpApagarDocs(id);});
+  }).then(rBkp).catch(function(e){showSync("Erro: "+e.message,false,true);});
+}
+function bkpImportar(inp){
+  var f=inp.files&&inp.files[0];if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    inp.value="";
+    try{
+      var o=JSON.parse(r.result),d=o&&o.dados;
+      if(!d||!Array.isArray(d.emp))throw new Error("Arquivo nao e um backup do sistema Eleve.");
+      bkpAplicar(d,"o arquivo "+f.name+(o.gerado?" (gerado em "+new Date(o.gerado).toLocaleString("pt-BR")+")":""));
+    }catch(e){alert("Nao foi possivel ler o arquivo: "+e.message);}
+  };
+  r.readAsText(f);
+}
+
+function rBkp(){
+  var el=document.getElementById("p-backup");if(!el)return;
+  var lista=BKP_LISTA;
+  var ultAuto=lista?lista.find(function(x){return x.tipo==="auto";}):null;
+  var tipoLb={auto:["AUTOMATICO","bdg-ok"],manual:["MANUAL","bdg-off"],"antes-restauracao":["ANTES DE RESTAURAR","bdg-dem"]};
+  var rows=lista===null?"<div class='empty'><i class='ti ti-loader'></i>Carregando backups...</div>":
+    lista.length===0?"<div class='empty'><i class='ti ti-database-off'></i>Nenhum backup ainda. O primeiro sera criado automaticamente hoje, ou clique em Fazer backup agora.</div>":
+    "<div style='overflow-x:auto'><table style='min-width:760px'><thead><tr style='background:"+B+";color:#fff'>"
+    +"<th>Data e hora</th><th>Tipo</th><th style='text-align:center'>Colaboradores</th><th style='text-align:center'>Lancamentos</th><th style='text-align:center'>Infracoes 5S</th><th style='text-align:right'>Tamanho</th><th style='text-align:right'>Acoes</th></tr></thead><tbody>"
+    +lista.map(function(x){
+      var tl=tipoLb[x.tipo]||[x.tipo,"bdg-off"],c=x.cont||{};
+      return "<tr><td style='font-weight:700;color:"+B+"'>"+bkpDataId(x.id)+"</td>"
+        +"<td><span class='bdg "+tl[1]+"'>"+tl[0]+"</span></td>"
+        +"<td style='text-align:center'>"+(c.emp||0)+"</td><td style='text-align:center'>"+(c.oc||0)+"</td><td style='text-align:center'>"+(c.oc5||0)+"</td>"
+        +"<td style='text-align:right;color:#888'>"+bkpTam(x.tam||0)+"</td>"
+        +"<td style='text-align:right;white-space:nowrap'>"
+        +"<button class='ibedt' title='Baixar (.json)' onclick=\"bkpBaixar('"+x.id+"')\"><i class='ti ti-download'></i></button>"
+        +"<button class='btng btn-ic' style='padding:.3rem .65rem;margin:0 4px' onclick=\"bkpRestaurar('"+x.id+"')\"><i class='ti ti-restore'></i>Restaurar</button>"
+        +"<button class='ibdel' title='Excluir' onclick=\"bkpExcluir('"+x.id+"')\"><i class='ti ti-trash'></i></button></td></tr>";
+    }).join("")+"</tbody></table></div>";
+  var local=bkpLocalAtivo();
+  el.innerHTML=
+    "<div class='pg-hd'><div><h1 class='h1'>Backup dos dados</h1><div class='sub'>Copias automaticas diarias com restauracao</div></div>"
+    +"<div style='display:flex;gap:8px;flex-wrap:wrap'>"
+    +"<button class='btng btn-ic' onclick='bkpBaixarAtual()'><i class='ti ti-download'></i>Baixar dados atuais (.json)</button>"
+    +"<label class='btng btn-ic' style='cursor:pointer'><i class='ti ti-upload'></i>Restaurar de arquivo<input type='file' accept='.json,application/json' onchange='bkpImportar(this)' style='display:none'/></label>"
+    +"<button class='btnp btn-ic' onclick='bkpAgora()'><i class='ti ti-database-plus'></i>Fazer backup agora</button></div></div>"
+    +(BKP_ERRO?"<div class='warn' style='margin-bottom:1rem;background:#fbe9e7;color:#a93226'><i class='ti ti-alert-triangle'></i> Ultimo backup automatico falhou: "+esc(BKP_ERRO)+". Verifique a conexao e as regras de seguranca do Firebase.</div>":"")
+    +"<div class='ga' style='margin-bottom:1rem'>"
+    +sCard("Ultimo backup automatico",ultAuto?bkpDataId(ultAuto.id):"—",GRN,"ti-clock-check",ultAuto?"criado no primeiro acesso do dia":"ainda nao criado")
+    +sCard("Backups guardados",(lista?lista.length:0)+" / "+BKP_MAX,B,"ti-database","os mais antigos sao apagados")
+    +sCard("Copia no computador",local?"Ativada":"Desativada",local?GRN:"#6b7580","ti-device-desktop","1x por semana (.json)")
+    +"</div>"
+    +"<div class='card' style='margin-bottom:1rem'>"
+    +"<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap'>"
+    +"<div style='font-size:13px;color:#555;line-height:1.6;max-width:760px'>"
+    +"<b style='color:"+B+"'>Como funciona:</b> no primeiro acesso de cada dia, o sistema guarda uma copia completa dos dados no Firebase e mantem as "+BKP_MAX+" mais recentes. "
+    +"Ao restaurar, uma copia do estado atual e criada antes, para poder desfazer. "
+    +"A copia semanal no computador baixa um arquivo .json para a pasta Downloads deste computador.</div>"
+    +"<div class='seg'><button class='seg-b"+(local?" on":"")+"' onclick='setBkpLocal(true)'>Copia semanal ligada</button><button class='seg-b"+(local?"":" on")+"' onclick='setBkpLocal(false)'>Desligada</button></div>"
+    +"</div></div>"
+    +"<div class='card'><div style='font-weight:700;font-size:15px;color:"+B+";margin-bottom:.75rem'>Backups guardados</div>"+rows+"</div>";
+  if(lista===null)bkpListar().then(rBkp).catch(function(e){BKP_ERRO=e.message;BKP_LISTA=[];rBkp();});
 }
 
 </script>
