@@ -32,7 +32,7 @@ firebase.initializeApp(firebaseConfig);
 var _db = firebase.firestore();
 
 // Cada tabela em um documento separado para evitar limite de tamanho
-var COLECOES = ["emp","oc","pr","idx","cc","oc5","motivos","sensos","motdem"];
+var COLECOES = ["emp","oc","pr","idx","cc","oc5","motivos","sensos","motdem","motafas"];
 
 window._fbLoad = function(){
   var promises = COLECOES.map(function(col){
@@ -55,6 +55,10 @@ window._fbLoad = function(){
     // Inicializa motivos de desligamento padrao se vazio
     if((!window.DB.motdem || window.DB.motdem.length === 0) && window.initMotDem){
       window.DB.motdem = window.initMotDem();
+    }
+    // Inicializa motivos de afastamento padrao se vazio
+    if((!window.DB.motafas || window.DB.motafas.length === 0) && window.initMotAfas){
+      window.DB.motafas = window.initMotAfas();
     }
     window._dbLoaded = true;
     console.log("Firebase carregado OK:", {
@@ -236,6 +240,44 @@ input:focus-visible,select:focus-visible{outline:none}
 .dem-box{background:#fbe9e7;border:1px solid #f3cdc7;border-radius:9px;padding:.7rem .85rem;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.5rem}
 .dem-box b{color:#c0392b}
 
+/* Calendario de aniversarios */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-wd{text-align:center;font-size:11px;font-weight:800;color:#8a94a0;text-transform:uppercase;letter-spacing:.5px;padding:4px 0}
+.cal-cell{min-height:96px;background:#fff;border:1px solid #eef1f5;border-radius:9px;padding:5px 5px 6px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.cal-cell.empty{background:transparent;border:none}
+.cal-cell.today{border:2px solid #127DCB;box-shadow:0 0 0 2px #127dcb22}
+.cal-dn{font-size:12px;font-weight:800;color:#556;align-self:flex-start;line-height:1}
+.cal-cell.today .cal-dn{color:#127DCB}
+.cal-ev{display:flex;align-items:center;gap:4px;border-radius:5px;padding:2px 5px;font-size:10.5px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-ev i{font-size:12px;flex-shrink:0}
+.cal-ev.emp{background:#e3f0fa;color:#0B4E83}
+.cal-ev.vida{background:#e4f4ea;color:#1a7a4a}
+.cal-leg{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#555}
+.cal-dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+@media (max-width:640px){.cal-cell{min-height:74px}.cal-ev{font-size:9.5px}}
+
+/* Tela de parabens */
+.aniv-bg{position:fixed;inset:0;background:rgba(15,30,45,.55);backdrop-filter:blur(2px);z-index:9800;display:flex;align-items:center;justify-content:center;padding:1rem;animation:anivfade .25s ease}
+@keyframes anivfade{from{opacity:0}to{opacity:1}}
+.aniv-card{background:#fff;border-radius:18px;max-width:460px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:anivpop .3s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes anivpop{from{transform:translateY(14px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+.aniv-hd{background:linear-gradient(135deg,#0B4E83,#127DCB);color:#fff;padding:1.5rem 1.5rem 1.3rem;text-align:center;position:relative}
+.aniv-hd .ic{font-size:42px;line-height:1;margin-bottom:.4rem}
+.aniv-hd h2{font-size:20px;font-weight:800;margin:0}
+.aniv-hd p{font-size:12.5px;opacity:.9;margin:.25rem 0 0}
+.aniv-bd{padding:1.1rem 1.25rem;max-height:52vh;overflow-y:auto}
+.aniv-row{display:flex;align-items:center;gap:11px;padding:.6rem 0;border-bottom:1px solid #f0f2f5}
+.aniv-row:last-child{border-bottom:none}
+.aniv-av{width:40px;height:40px;border-radius:50%;background:#e3f0fa;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#0B4E83;flex-shrink:0}
+.aniv-nm{font-weight:800;font-size:14px;color:#222}
+.aniv-fn{font-size:11.5px;color:#999}
+.aniv-tag{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800;margin-top:3px}
+.aniv-tag.emp{background:#e3f0fa;color:#0B4E83}
+.aniv-tag.vida{background:#e4f4ea;color:#1a7a4a}
+.aniv-ft{padding:0 1.25rem 1.35rem;text-align:center}
+.aniv-ft button{background:#0B4E83;color:#fff;border:none;border-radius:10px;padding:.7rem 2.2rem;font-size:14px;font-weight:800;cursor:pointer}
+.aniv-ft button:hover{background:#127DCB}
+
 /* 5S chips */
 .chip{display:inline-flex;align-items:center;gap:3px;background:#e3f0fa;color:var(--deep);border-radius:5px;padding:2px 3px 2px 8px;font-size:11px;font-weight:700}
 .chip button{background:none;border:none;color:#6d8aa3;font-size:13px;line-height:1;padding:0 2px;border-radius:3px}
@@ -298,6 +340,7 @@ input:focus-visible,select:focus-visible{outline:none}
       <button class="nb" id="nb-indices" onclick="go('indices')"><i class="ti ti-adjustments" style="font-size:18px;flex-shrink:0"></i><span class="nl">Indices</span></button>
       <button class="nb" id="nb-motivos" onclick="go('motivos')"><i class="ti ti-tags" style="font-size:18px;flex-shrink:0"></i><span class="nl">Motivos</span></button>
       <button class="nb" id="nb-relatorio" onclick="go('relatorio')"><i class="ti ti-chart-bar" style="font-size:18px;flex-shrink:0"></i><span class="nl">Relatorios</span></button>
+      <button class="nb" id="nb-calendario" onclick="go('calendario')"><i class="ti ti-calendar-heart" style="font-size:18px;flex-shrink:0"></i><span class="nl">Aniversarios</span></button>
       <button class="nb" id="nb-backup" onclick="go('backup')"><i class="ti ti-database" style="font-size:18px;flex-shrink:0"></i><span class="nl">Backup</span></button>
     </nav>
     <div style="padding:.875rem;border-top:1px solid rgba(255,255,255,.12)">
@@ -317,6 +360,7 @@ input:focus-visible,select:focus-visible{outline:none}
     <div id="p-indices" class="page"></div>
     <div id="p-motivos" class="page"></div>
     <div id="p-relatorio" class="page"></div>
+    <div id="p-calendario" class="page"></div>
     <div id="p-backup" class="page"></div>
   </div>
 </div>
@@ -330,7 +374,7 @@ input:focus-visible,select:focus-visible{outline:none}
 // ═══════════════════════════════════════
 // DB GLOBAL
 // ═══════════════════════════════════════
-var DB={emp:[],oc:[],pr:[],idx:[],cc:[],oc5:[],motivos:[],sensos:[],motdem:[]};
+var DB={emp:[],oc:[],pr:[],idx:[],cc:[],oc5:[],motivos:[],sensos:[],motdem:[],motafas:[]};
 var SAVE_TIMER=null;
 
 function dbLoad(){
@@ -419,6 +463,7 @@ function entrarApp(){
     showSync("Dados carregados! ("+DB.emp.length+" colaboradores)",true);
     setTimeout(function(){document.getElementById("sync-bar").style.display="none";},3000);
     go("dashboard");
+    if(typeof checkAniversarios==="function")setTimeout(checkAniversarios,400);
     if(window.USAR_LOGIN_FIREBASE&&window._startPing)window._startPing();
     if(typeof autoBackup==="function")setTimeout(autoBackup,1500);
   }).catch(function(e){
@@ -556,6 +601,33 @@ function empNoMes(e,mes){
 function fmtD(d){if(!d)return "";var p=d.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;}
 function gv(id){var el=document.getElementById(id);return el?el.value:"";}
 
+// ═══ AFASTAMENTO E DATAS COMEMORATIVAS ═══
+function mmdd(d){return d&&d.length>=10?d.slice(5,10):"";} // "MM-DD"
+function anosInt(dataRef,dataBase){ // anos inteiros completos de dataBase ate dataRef
+  if(!dataBase)return 0;
+  var b=new Date(dataBase+"T12:00:00"),r=new Date(dataRef+"T12:00:00");
+  var a=r.getFullYear()-b.getFullYear();
+  if(r.getMonth()<b.getMonth()||(r.getMonth()===b.getMonth()&&r.getDate()<b.getDate()))a--;
+  return a;
+}
+// Colaborador afastado em uma data especifica (dentro de algum periodo de afastamento)
+function afastadoEm(e,data){
+  if(!e.afast||!e.afast.length)return null;
+  for(var i=0;i<e.afast.length;i++){
+    var af=e.afast[i];
+    if(af.ini&&af.ini<=data&&(!af.fim||af.fim>=data))return af;
+  }
+  return null;
+}
+// Colaborador afastado durante o mes m ("YYYY-MM") - qualquer sobreposicao com o mes
+function afastadoNoMes(e,m){
+  if(!e.afast||!e.afast.length)return false;
+  var ini=m+"-01",fim=fimMesStr(m);
+  return e.afast.some(function(af){return af.ini&&af.ini<=fim&&(!af.fim||af.fim>=ini);});
+}
+// Conta para premios/relatorios: dentro do vinculo E nao afastado no mes
+function contaNoMes(e,m){return empNoMes(e,m)&&!afastadoNoMes(e,m);}
+
 
 // ═══ DETALHE DOS GRAFICOS DO DASHBOARD (clique para ver e editar) ═══
 var DRILL=null;
@@ -654,6 +726,7 @@ function closeMd(id){var m=document.getElementById(id);if(m)m.classList.remove("
 document.addEventListener("keydown",function(ev){
   if(ev.key!=="Escape")return;
   if(document.getElementById("emod")){closeModal();return;}
+  if(document.getElementById("md-afast")){closeAfastModal();return;}
   if(document.getElementById("md-dem")){closeDemModal();return;}
   var mopen=document.querySelectorAll(".mdl-bg.open:not(#md-drill)");
   if(mopen.length){mopen[mopen.length-1].classList.remove("open");return;}
@@ -696,6 +769,7 @@ function go(p){
   killCH();
   if(typeof closeModal==="function")closeModal();
   if(typeof closeDemModal==="function")closeDemModal();
+  if(typeof closeAfastModal==="function")closeAfastModal();
   if(typeof closeDrill==="function")closeDrill();
   document.querySelectorAll(".mdl-bg.open").forEach(function(m){m.classList.remove("open");});
   document.querySelectorAll(".page").forEach(function(x){x.classList.remove("active");});
@@ -703,7 +777,7 @@ function go(p){
   document.getElementById("p-"+p).classList.add("active");
   document.getElementById("nb-"+p).classList.add("on");
   pg=p;
-  ({dashboard:rDash,centros:rCC,employees:rEmp,monitor:rMon,"5s":r5S,lancamento:rLanc,premios:rPrem,indices:rIdx,motivos:rMotivos,relatorio:rRel,backup:function(){BKP_LISTA=null;rBkp();}})[p]();
+  ({dashboard:rDash,centros:rCC,employees:rEmp,monitor:rMon,"5s":r5S,lancamento:rLanc,premios:rPrem,indices:rIdx,motivos:rMotivos,relatorio:rRel,calendario:rCal,backup:function(){BKP_LISTA=null;rBkp();}})[p]();
 }
 function toggleSB(){
   sbOpen=!sbOpen;
@@ -1327,6 +1401,25 @@ function motDemOpts(sel){
   return "<option value=''>Selecione o motivo...</option>"
     +DB.motdem.map(function(m){return "<option value='"+m.id+"'"+(m.id===sel?" selected":"")+">"+esc(m.nome)+"</option>";}).join("");
 }
+// ── Motivos de afastamento ──
+function initMotAfas(){
+  return [
+    {id:uid(),nome:"Atestado medico"},
+    {id:uid(),nome:"Licenca INSS (auxilio-doenca)"},
+    {id:uid(),nome:"Acidente de trabalho"},
+    {id:uid(),nome:"Licenca-maternidade"},
+    {id:uid(),nome:"Licenca-paternidade"},
+    {id:uid(),nome:"Ferias"},
+    {id:uid(),nome:"Suspensao"},
+    {id:uid(),nome:"Outro"}
+  ];
+}
+function motAfasNome(id){if(!DB.motafas)return "Sem motivo";var m=id?DB.motafas.find(function(x){return x.id===id;}):null;return m?m.nome:"Sem motivo";}
+function motAfasOpts(sel){
+  if(!DB.motafas)DB.motafas=[];
+  return "<option value=''>Selecione o motivo...</option>"
+    +DB.motafas.map(function(m){return "<option value='"+m.id+"'"+(m.id===sel?" selected":"")+">"+esc(m.nome)+"</option>";}).join("");
+}
 function rEmp(){
   var ccOpts="<option value=''>Selecione o centro...</option>";
   DB.cc.forEach(function(cc){ccOpts+="<option value='"+cc.id+"'>"+esc(cc.cod)+" - "+esc(cc.desc)+"</option>";});
@@ -1348,7 +1441,9 @@ function rEmp(){
       +"<div class='fr2'>"
       +"<div class='fr'><label class='lbl'>Funcao / Cargo</label><input type='text' id='efunc' placeholder='Ex: Operador'/></div>"
       +"<div class='fr'><label class='lbl'>Data de admissao</label><input type='date' id='eadm'/></div></div>"
-      +"<div class='fr'><label class='lbl'>Centro de Custo <span class='opt'>(opcional)</span></label><select id='ecc'>"+ccOpts+"</select></div>"
+      +"<div class='fr2'>"
+      +"<div class='fr'><label class='lbl'>Data de aniversario <span class='opt'>(opcional)</span></label><input type='date' id='eaniv'/></div>"
+      +"<div class='fr'><label class='lbl'>Centro de Custo <span class='opt'>(opcional)</span></label><select id='ecc'>"+ccOpts+"</select></div></div>"
       +"<div class='fr'><label class='lbl'>Situacao na empresa</label>"
       +"<input type='hidden' id='eativo' value='1'/>"
       +"<div class='seg seg-full'>"
@@ -1381,6 +1476,7 @@ function rEmpList(list){
     var a=isAtivo(e);
     var st=a?(empFiltro==="todos"?"<span class='bdg bdg-ok'>ATIVO</span>":"")
       :(e.dem?"<span class='bdg bdg-dem'>DEMITIDO</span>":"<span class='bdg bdg-off'>INATIVO</span>");
+    if(a&&afastadoEm(e,hoje()))st+=" <span class='bdg' style='background:#fdecd2;color:#8a5a00'>AFASTADO</span>";
     return "<div class='erow"+(a?"":" off")+"'>"
       +"<div class='erow-main'><div class='erow-nm'>"+esc(e.nome)+st+"</div>"
       +"<div class='erow-sub'>"+esc(e.func)+(cc?" &nbsp;&middot;&nbsp; <span style='color:"+BL+";font-weight:600'><i class='ti ti-building' style='font-size:11px'></i> "+esc(cc.cod)+"</span>":"")+"</div>"
@@ -1407,12 +1503,12 @@ function setEmpAtivo(v){
 }
 function savEmp(){
   var id=gv("eid");
-  var nome=gv("enome").trim(),func=gv("efunc").trim(),ccid=gv("ecc"),adm=gv("eadm");
+  var nome=gv("enome").trim(),func=gv("efunc").trim(),ccid=gv("ecc"),adm=gv("eadm"),aniv=gv("eaniv");
   var ativo=gv("eativo")==="1";
   if(!nome||!func||!adm){alert("Preencha nome, funcao e admissao.");return;}
   var old=id?DB.emp.find(function(e){return e.id===id;}):null;
   if(old&&old.dem&&ativo&&!confirm(nome+" esta demitido. Marcar como ativo cancela a demissao. Continuar?"))return;
-  var obj=Object.assign({},old||{dem:""},{id:id||uid(),nome:nome,func:func,ccid:ccid,adm:adm,ativo:ativo});
+  var obj=Object.assign({},old||{dem:""},{id:id||uid(),nome:nome,func:func,ccid:ccid,adm:adm,aniv:aniv,ativo:ativo});
   if(ativo){obj.dem="";delete obj.motdem;delete obj.obsdem;delete obj.inat;}
   else if(!obj.dem&&!obj.inat){obj.inat=hoje();}
   if(obj.dem&&adm>obj.dem){alert("A admissao nao pode ser posterior a demissao ("+fmtD(obj.dem)+").");return;}
@@ -1426,21 +1522,16 @@ function edtEmp(id){
   document.getElementById("efunc").value=e.func;
   document.getElementById("ecc").value=e.ccid||"";
   document.getElementById("eadm").value=e.adm;
+  var an=document.getElementById("eaniv");if(an)an.value=e.aniv||"";
   document.getElementById("eftt").textContent="Editar colaborador";
   document.getElementById("esav").textContent="Salvar alteracoes";
   setEmpAtivo(isAtivo(e)?"1":"0");
   var area=document.getElementById("edemarea");
-  if(e.dem){
-    area.innerHTML="<div class='dem-box'><div style='font-size:12px'><b><i class='ti ti-user-minus'></i> Demitido em "+fmtD(e.dem)+"</b><br/>"
-      +"Motivo: "+esc(motDemNome(e.motdem))+(e.obsdem?" &middot; "+esc(e.obsdem):"")+"</div>"
-      +"<button class='btng' onclick=\"cancDem('"+e.id+"')\"><i class='ti ti-arrow-back-up'></i> Cancelar demissao</button></div>";
-  }else if(isAtivo(e)){
-    area.innerHTML="<button class='btn-dem' style='width:100%;justify-content:center;padding:.5rem' data-fn='demEmp' data-id='"+e.id+"'><i class='ti ti-user-minus'></i>Registrar demissao</button>";
-  }else{area.innerHTML="";}
+  area.innerHTML=empExtraArea(e);
   openMd("md-emp");
 }
 function canEmp(){
-  ["eid","enome","efunc","eadm"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
+  ["eid","enome","efunc","eadm","eaniv"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   var cc=document.getElementById("ecc");if(cc)cc.value="";
   var t=document.getElementById("eftt");if(t)t.textContent="Novo colaborador";
   var btn=document.getElementById("esav");if(btn)btn.textContent="Cadastrar";
@@ -1518,6 +1609,118 @@ function confDem(){
   });
   dbSave();closeDemModal();
   if(pg==="employees")rEmp();else if(pg==="monitor")rMon();
+}
+
+// ═══ AFASTAMENTO (dentro do cadastro do colaborador) ═══
+// Monta a area de demissao + afastamentos do modal de edicao
+function empExtraArea(e){
+  var htmlDem="";
+  if(e.dem){
+    htmlDem="<div class='dem-box'><div style='font-size:12px'><b><i class='ti ti-user-minus'></i> Demitido em "+fmtD(e.dem)+"</b><br/>"
+      +"Motivo: "+esc(motDemNome(e.motdem))+(e.obsdem?" &middot; "+esc(e.obsdem):"")+"</div>"
+      +"<button class='btng' onclick=\"cancDem('"+e.id+"')\"><i class='ti ti-arrow-back-up'></i> Cancelar demissao</button></div>";
+  }else if(isAtivo(e)){
+    htmlDem="<button class='btn-dem' style='width:100%;justify-content:center;padding:.5rem' data-fn='demEmp' data-id='"+e.id+"'><i class='ti ti-user-minus'></i>Registrar demissao</button>";
+  }
+  return htmlDem+renderAfastArea(e);
+}
+function renderAfastArea(e){
+  var afs=(e.afast||[]).slice().sort(function(a,b){return (b.ini||"").localeCompare(a.ini||"");});
+  var hoj=hoje();
+  var lista=afs.map(function(af){
+    var atual=af.ini&&af.ini<=hoj&&(!af.fim||af.fim>=hoj);
+    var fut=af.ini&&af.ini>hoj;
+    var badge=atual?"<span class='bdg' style='background:#fdecd2;color:#8a5a00'>EM AFASTAMENTO</span>"
+      :fut?"<span class='bdg' style='background:#e3f0fa;color:"+B+"'>AGENDADO</span>"
+      :"<span class='bdg bdg-off'>ENCERRADO</span>";
+    return "<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fff;border:1px solid #eef1f5;border-radius:8px;padding:.45rem .6rem;margin-bottom:5px'>"
+      +"<div style='font-size:12px;min-width:0'><b style='color:#333'>"+esc(motAfasNome(af.mot))+"</b> "+badge+"<br/>"
+      +"<span style='color:#888'>"+fmtD(af.ini)+" &rarr; "+(af.fim?fmtD(af.fim):"sem data de retorno")+"</span>"
+      +(af.obs?"<br/><span style='color:#aaa'>"+esc(af.obs)+"</span>":"")+"</div>"
+      +"<button class='ibdel' title='Remover afastamento' onclick=\"delAfast('"+e.id+"','"+af.id+"')\"><i class='ti ti-trash'></i></button>"
+      +"</div>";
+  }).join("");
+  return "<div style='margin-top:.75rem;padding-top:.75rem;border-top:1px dashed #e2e7ee'>"
+    +"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'>"
+    +"<span class='lbl' style='margin:0'>Afastamentos</span>"
+    +"<button class='btng btn-ic' style='padding:.35rem .6rem' onclick=\"afastEmp('"+e.id+"')\"><i class='ti ti-plane-departure'></i>Registrar afastamento</button></div>"
+    +(afs.length?lista:"<div class='hint' style='margin:0'>Nenhum afastamento registrado. No periodo de afastamento o colaborador nao aparece nos Premios nem no relatorio do Cartao.</div>")
+    +"</div>";
+}
+function afastEmp(id){
+  var e=DB.emp.find(function(x){return x.id===id;});if(!e)return;
+  if(!DB.motafas||DB.motafas.length===0)DB.motafas=initMotAfas();
+  closeAfastModal();
+  var div=document.createElement("div");div.className="mdl-bg open";div.id="md-afast";div.style.zIndex="9600";
+  div.innerHTML="<div class='mdl' role='dialog' aria-modal='true' style='width:470px'>"
+    +"<div class='mdl-hd'><div class='mdl-tt' style='color:#8a5a00'><i class='ti ti-plane-departure'></i>Registrar afastamento</div>"
+    +"<button class='mdl-x' onclick='closeAfastModal()' aria-label='Fechar'><i class='ti ti-x'></i></button></div>"
+    +"<div class='mdl-bd'>"
+    +"<div class='who'><strong>"+esc(e.nome)+"</strong><span>"+esc(e.func)+" &middot; admitido em "+fmtD(e.adm)+"</span></div>"
+    +"<input type='hidden' id='afid' value='"+e.id+"'/>"
+    +"<div class='fr'><label class='lbl'>Motivo do afastamento</label>"
+    +"<div style='display:flex;gap:6px'><select id='afmot' style='flex:1;min-width:0'>"+motAfasOpts("")+"</select>"
+    +"<button type='button' class='btng btn-ic' onclick='togNovoMotAfas()' title='Cadastrar novo motivo' style='white-space:nowrap'><i class='ti ti-plus'></i>Novo motivo</button></div>"
+    +"<div id='afnovo' style='display:none;margin-top:6px;gap:6px'>"
+    +"<input type='text' id='afnovonm' placeholder='Nome do novo motivo' onkeydown=\"if(event.key==='Enter')addMotAfas()\" style='flex:1;min-width:0'/>"
+    +"<button type='button' class='btnp' onclick='addMotAfas()'>Salvar</button></div></div>"
+    +"<div class='fr2'>"
+    +"<div class='fr'><label class='lbl'>Inicio do afastamento</label><input type='date' id='afini' value='"+hoje()+"' min='"+(e.adm||"")+"'/></div>"
+    +"<div class='fr'><label class='lbl'>Ate quando <span class='opt'>(fim)</span></label><input type='date' id='affim'/></div></div>"
+    +"<div class='hint' style='margin-top:-4px'>Deixe o fim em branco se ainda nao houver previsao de retorno.</div>"
+    +"<div class='fr'><label class='lbl'>Observacao <span class='opt'>(opcional)</span></label><input type='text' id='afobs' placeholder='Detalhes do afastamento...'/></div>"
+    +"<div class='warn'><i class='ti ti-info-circle'></i> Durante o periodo de afastamento o colaborador fica oculto nos Premios e no relatorio do Cartao.</div>"
+    +"<div class='mdl-ft'><button class='btng' onclick='closeAfastModal()'>Cancelar</button>"
+    +"<button class='btnp' onclick='confAfast()'>Confirmar afastamento</button></div>"
+    +"</div></div>";
+  document.body.appendChild(div);
+  div.addEventListener("mousedown",function(ev){if(ev.target===div)closeAfastModal();});
+}
+function closeAfastModal(){var m=document.getElementById("md-afast");if(m)m.remove();}
+function togNovoMotAfas(){
+  var r=document.getElementById("afnovo");if(!r)return;
+  var show=r.style.display==="none";
+  r.style.display=show?"flex":"none";
+  if(show)document.getElementById("afnovonm").focus();
+}
+function addMotAfas(){
+  var nm=gv("afnovonm").trim();
+  if(!nm){alert("Informe o nome do motivo.");return;}
+  if(!DB.motafas)DB.motafas=[];
+  var ex=DB.motafas.find(function(m){return m.nome.toLowerCase()===nm.toLowerCase();});
+  var novo=ex||{id:uid(),nome:nm};
+  if(!ex){DB.motafas.push(novo);dbSave();}
+  var sel=document.getElementById("afmot");if(sel)sel.innerHTML=motAfasOpts(novo.id);
+  document.getElementById("afnovonm").value="";
+  document.getElementById("afnovo").style.display="none";
+}
+function confAfast(){
+  var id=gv("afid"),mot=gv("afmot"),ini=gv("afini"),fim=gv("affim"),obs=gv("afobs").trim();
+  var e=DB.emp.find(function(x){return x.id===id;});if(!e)return;
+  if(!mot){alert("Selecione o motivo do afastamento (ou cadastre um novo).");return;}
+  if(!ini){alert("Informe a data de inicio do afastamento.");return;}
+  if(e.adm&&ini<e.adm){alert("O afastamento nao pode comecar antes da admissao ("+fmtD(e.adm)+").");return;}
+  if(fim&&fim<ini){alert("A data de fim nao pode ser anterior ao inicio.");return;}
+  DB.emp=DB.emp.map(function(x){
+    if(x.id!==id)return x;
+    var n=Object.assign({},x);n.afast=(n.afast||[]).concat([{id:uid(),mot:mot,ini:ini,fim:fim||"",obs:obs}]);return n;
+  });
+  dbSave();closeAfastModal();
+  var e2=DB.emp.find(function(x){return x.id===id;});
+  var area=document.getElementById("edemarea");if(area&&gv("eid")===id)area.innerHTML=empExtraArea(e2);
+  if(pg==="employees")rEmp();
+}
+function delAfast(eid,afid){
+  var e=DB.emp.find(function(x){return x.id===eid;});if(!e)return;
+  if(!confirm("Remover este afastamento?"))return;
+  DB.emp=DB.emp.map(function(x){
+    if(x.id!==eid)return x;
+    var n=Object.assign({},x);n.afast=(n.afast||[]).filter(function(a){return a.id!==afid;});return n;
+  });
+  dbSave();
+  var e2=DB.emp.find(function(x){return x.id===eid;});
+  var area=document.getElementById("edemarea");if(area&&gv("eid")===eid)area.innerHTML=empExtraArea(e2);
+  if(pg==="employees")rEmp();
 }
 
 // LANCAMENTOS
@@ -2086,7 +2289,7 @@ function del5S(id){
 function rPrem(){
   var sm=document.getElementById("pm")&&document.getElementById("pm").value||curMes();
   var sn=(document.getElementById("pn")&&document.getElementById("pn").value||"").toLowerCase();
-  var ativosMes=DB.emp.filter(function(e){return empNoMes(e,sm);}).sort(function(a,b){return a.nome.localeCompare(b.nome);});
+  var ativosMes=DB.emp.filter(function(e){return contaNoMes(e,sm);}).sort(function(a,b){return a.nome.localeCompare(b.nome);});
   var fil=ativosMes.filter(function(e){return!sn||e.nome.toLowerCase().includes(sn)||e.func.toLowerCase().includes(sn);});
   var rows=fil.map(function(emp){
     var pr=DB.pr.find(function(p){return p.eid===emp.id;});
@@ -2717,7 +2920,7 @@ function relMes(m,se){
   var r={m:m,linhas:[],pot:0,pago:0,perd:0,lf:0,la:0,ls:0,nf:0,na:0,ns:0,ok:0,absF:0,absBase:0};
   DB.emp.forEach(function(e){
     if(se&&e.id!==se)return;
-    if(!empNoMes(e,m))return;
+    if(!contaNoMes(e,m))return;
     var pr=DB.pr.find(function(p){return p.eid===e.id;});if(!pr)return;
     var d=calcDesc(e.id,m,pr.val);
     var pf=0,pa=0,ps=0;
@@ -2733,7 +2936,7 @@ function relMes(m,se){
     if(l.pct===0)r.ok++;
   });
   var fim=fimMesStr(m),ini=m+"-01",ids={};
-  DB.emp.forEach(function(e){if((!se||e.id===se)&&e.adm&&e.adm<=fim&&(!e.dem||e.dem>=ini))ids[e.id]=1;});
+  DB.emp.forEach(function(e){if((!se||e.id===se)&&e.adm&&e.adm<=fim&&(!e.dem||e.dem>=ini)&&!afastadoNoMes(e,m))ids[e.id]=1;});
   r.absF=DB.oc.filter(function(o){return o.tipo==="falta"&&gmk(o.data)===m&&ids[o.eid];}).length;
   r.du=dUteis(m);r.hc=Object.keys(ids).length;r.absBase=r.hc*r.du;
   return relFin(r);
@@ -2850,6 +3053,30 @@ function relCfgColab(P,s,max){
               y:{ticks:{font:{size:11.5*s,weight:600},color:"#444"},grid:{display:false}}}}};
 }
 
+// Task 4: cartao com admissao e tempo de empresa do colaborador pesquisado
+function relEmpInfo(e){
+  var cc=e.ccid?DB.cc.find(function(c){return c.id===e.ccid;}):null;
+  var anos=anosInt(hoje(),e.adm);
+  var tempoTxt=anos>=1?(anos+" ano"+(anos>1?"s":"")+" de empresa"):tEmp(e.adm,e.dem)+" de empresa";
+  function celula(ic,lb,val,cor){
+    return "<div style='display:flex;align-items:center;gap:8px'>"
+      +"<i class='ti "+ic+"' style='font-size:20px;color:"+(cor||B)+"'></i>"
+      +"<div><div style='font-size:10px;color:#8a94a0;font-weight:700;text-transform:uppercase;letter-spacing:.4px'>"+lb+"</div>"
+      +"<div style='font-size:14px;font-weight:800;color:#2a2e33'>"+val+"</div></div></div>";
+  }
+  var afHoje=afastadoEm(e,hoje());
+  return "<div class='card' style='margin-bottom:1.1rem;padding:.9rem 1.1rem'>"
+    +"<div style='display:flex;flex-wrap:wrap;gap:1.5rem 2rem;align-items:center'>"
+    +"<div style='display:flex;align-items:center;gap:10px'>"
+    +"<div style='width:38px;height:38px;border-radius:50%;background:#e3f0fa;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:"+B+"'>"+ini(e.nome)+"</div>"
+    +"<div><div style='font-size:15px;font-weight:800;color:"+B+"'>"+esc(e.nome)+"</div>"
+    +"<div style='font-size:12px;color:#888'>"+esc(e.func)+(cc?" &middot; "+esc(cc.cod):"")+(isAtivo(e)?"":" &middot; inativo")+"</div></div></div>"
+    +celula("ti-calendar-plus","Data de admissao",fmtD(e.adm),B)
+    +celula("ti-hourglass","Tempo de empresa",tempoTxt,GRN)
+    +(e.aniv?celula("ti-cake","Aniversario",fmtD(e.aniv)+" ("+anosInt(hoje(),e.aniv)+" anos)",PUR):"")
+    +(afHoje?celula("ti-plane-departure","Situacao","Afastado ate "+(afHoje.fim?fmtD(afHoje.fim):"s/ previsao"),"#8a5a00"):"")
+    +"</div></div>";
+}
 function setRelModo(m){relModo=m;rRel();}
 function rRel(){
   killCH();
@@ -2946,6 +3173,8 @@ function rRel(){
     +MOS.map(function(m,i){var v=selAno+"-"+String(i+1).padStart(2,"0");return "<option value='"+v+"'"+(v===selMes?" selected":"")+">"+m+"</option>";}).join("")+"</select></div>"
     +"<select id='re' onchange='rRel()' style='width:260px;max-width:100%;padding:.45rem .7rem;font-size:13px'>"+eOpts+"</select>"
     +"</div>"
+
+    +(empSel?relEmpInfo(empSel):"")
 
     +"<div class='ga' style='margin-bottom:1.1rem'>"
     +sCard("Premio previsto",fmtBRL(P.pot),B,"ti-gift",per)
@@ -3130,6 +3359,169 @@ function gerarAnalisePDF(){
     doc.text("Página "+p+"/"+n,W-mg,H-5,{align:"right"});
   }
   doc.save("analise-premio-cartao-"+(st.modo==="mes"?st.selMes:st.selAno)+(st.empNome?"-colaborador":"")+".pdf");
+}
+
+
+// ═══════════════════════════════════════
+// ANIVERSARIOS — parabens, calendario e PDF
+// ═══════════════════════════════════════
+var MOSF=["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+// Eventos (tempo de empresa + aniversario de vida) de um mes/ano
+function anivDoMes(ano,mesIdx){
+  var mm=String(mesIdx+1).padStart(2,"0"),emp=[],vida=[];
+  DB.emp.filter(isAtivo).forEach(function(e){
+    if(e.adm&&e.adm.slice(5,7)===mm){
+      var a=ano-parseInt(e.adm.slice(0,4),10);
+      if(a>=1)emp.push({e:e,dia:parseInt(e.adm.slice(8,10),10),anos:a,data:e.adm});
+    }
+    if(e.aniv&&e.aniv.slice(5,7)===mm){
+      vida.push({e:e,dia:parseInt(e.aniv.slice(8,10),10),anos:ano-parseInt(e.aniv.slice(0,4),10),data:e.aniv});
+    }
+  });
+  var ord=function(a,b){return a.dia-b.dia||a.e.nome.localeCompare(b.e.nome);};
+  emp.sort(ord);vida.sort(ord);
+  return {empresa:emp,vida:vida};
+}
+
+// ── TELA DE PARABENS (Task 2) ──
+function checkAniversarios(){
+  var hj=hoje(),mm=mmdd(hj),ano=parseInt(hj.slice(0,4),10),evs=[];
+  DB.emp.filter(isAtivo).forEach(function(e){
+    if(e.adm&&mmdd(e.adm)===mm){var a=ano-parseInt(e.adm.slice(0,4),10);if(a>=1)evs.push({e:e,tipo:"empresa",anos:a});}
+    if(e.aniv&&mmdd(e.aniv)===mm){evs.push({e:e,tipo:"vida",anos:ano-parseInt(e.aniv.slice(0,4),10)});}
+  });
+  if(!evs.length)return;
+  evs.sort(function(a,b){return a.e.nome.localeCompare(b.e.nome);});
+  var temEmp=evs.some(function(x){return x.tipo==="empresa";}),temVida=evs.some(function(x){return x.tipo==="vida";});
+  var subt=temEmp&&temVida?"Aniversario de vida e de tempo de empresa hoje":temVida?"Aniversario de vida hoje":"Aniversario de tempo de empresa hoje";
+  var rows=evs.map(function(x){
+    var tag=x.tipo==="empresa"
+      ?"<span class='aniv-tag emp'><i class='ti ti-building'></i> "+x.anos+" ano"+(x.anos>1?"s":"")+" de Eleve</span>"
+      :"<span class='aniv-tag vida'><i class='ti ti-cake'></i> "+x.anos+" ano"+(x.anos!==1?"s":"")+"</span>";
+    return "<div class='aniv-row'><div class='aniv-av'>"+ini(x.e.nome)+"</div>"
+      +"<div style='min-width:0'><div class='aniv-nm'>"+esc(x.e.nome)+"</div>"
+      +"<div class='aniv-fn'>"+esc(x.e.func)+"</div>"+tag+"</div></div>";
+  }).join("");
+  closeAniv();
+  var div=document.createElement("div");div.className="aniv-bg";div.id="md-aniv";
+  div.innerHTML="<div class='aniv-card' role='dialog' aria-modal='true'>"
+    +"<div class='aniv-hd'><div class='ic'><i class='ti ti-confetti'></i></div>"
+    +"<h2>Parabens!</h2><p>"+subt+"</p></div>"
+    +"<div class='aniv-bd'>"+rows+"</div>"
+    +"<div class='aniv-ft'><button onclick='closeAniv()'><i class='ti ti-check' style='margin-right:5px'></i>Fechar</button></div>"
+    +"</div>";
+  document.body.appendChild(div);
+}
+function closeAniv(){var m=document.getElementById("md-aniv");if(m)m.remove();}
+
+// ── CALENDARIO DE ANIVERSARIOS (Task 3) ──
+function rCal(){
+  var now=new Date();
+  var selAno=parseInt(gv("cal-ano"),10);if(isNaN(selAno))selAno=now.getFullYear();
+  var selMes=gv("cal-mes");selMes=selMes===""?now.getMonth():parseInt(selMes,10);
+  if(isNaN(selMes))selMes=now.getMonth();
+
+  var anoAtual=now.getFullYear(),anos=[];
+  for(var y=anoAtual-3;y<=anoAtual+2;y++)anos.push(y);
+  var anoOpts=anos.map(function(a){return "<option value='"+a+"'"+(a===selAno?" selected":"")+">"+a+"</option>";}).join("");
+  var mesOpts=MOSF.map(function(m,i){return "<option value='"+i+"'"+(i===selMes?" selected":"")+">"+m+"</option>";}).join("");
+
+  var ev=anivDoMes(selAno,selMes);
+  var porDia={};
+  ev.empresa.forEach(function(x){(porDia[x.dia]=porDia[x.dia]||[]).push({t:"emp",x:x});});
+  ev.vida.forEach(function(x){(porDia[x.dia]=porDia[x.dia]||[]).push({t:"vida",x:x});});
+
+  var primeiro=new Date(selAno,selMes,1).getDay();
+  var diasNoMes=new Date(selAno,selMes+1,0).getDate();
+  var hj=hoje(),mmHj=String(selMes+1).padStart(2,"0"),ehMesAtual=(selAno===now.getFullYear());
+
+  var wd=["Dom","Seg","Ter","Qua","Qui","Sex","Sab"];
+  var grid="<div class='cal-grid'>"+wd.map(function(d){return "<div class='cal-wd'>"+d+"</div>";}).join("");
+  for(var i=0;i<primeiro;i++)grid+="<div class='cal-cell empty'></div>";
+  for(var d=1;d<=diasNoMes;d++){
+    var dd=String(d).padStart(2,"0");
+    var ehHoje=ehMesAtual&&(selAno+"-"+mmHj+"-"+dd)===hj;
+    var evs=porDia[d]||[];
+    var pills=evs.map(function(o){
+      var nome=nome1(o.x.e);
+      if(o.t==="emp")return "<div class='cal-ev emp' title='"+esc(o.x.e.nome)+" - "+o.x.anos+" anos de empresa'><i class='ti ti-building'></i>"+esc(nome)+" ("+o.x.anos+"a)</div>";
+      return "<div class='cal-ev vida' title='"+esc(o.x.e.nome)+" - "+o.x.anos+" anos'><i class='ti ti-cake'></i>"+esc(nome)+" ("+o.x.anos+")</div>";
+    }).join("");
+    grid+="<div class='cal-cell"+(ehHoje?" today":"")+"'><span class='cal-dn'>"+d+"</span>"+pills+"</div>";
+  }
+  grid+="</div>";
+
+  var selSt="padding:.4rem .75rem;border:1.5px solid #dce3ea;border-radius:8px;font-size:13px;color:"+B+";font-weight:700;background:#fff";
+  var totalEmp=ev.empresa.length,totalVida=ev.vida.length;
+
+  document.getElementById("p-calendario").innerHTML=
+    "<div class='pg-hd'><div><h1 class='h1'>Aniversarios</h1>"
+    +"<div class='sub'>Tempo de empresa e aniversario de vida &middot; "+MOSF[selMes]+"/"+selAno+"</div></div>"
+    +"<button class='btnp btn-ic' onclick='gerarAniversariantesPDF()'"+((totalEmp+totalVida)?"":" disabled")+"><i class='ti ti-printer'></i>Imprimir aniversariantes do mes</button></div>"
+    +"<div class='card' style='margin-bottom:1rem'>"
+    +"<div style='display:flex;gap:12px;flex-wrap:wrap;align-items:center'>"
+    +"<div style='display:flex;align-items:center;gap:8px'><i class='ti ti-calendar' style='color:#888;font-size:16px'></i>"
+    +"<span style='font-size:12px;font-weight:600;color:#555'>Mes:</span><select id='cal-mes' onchange='rCal()' style='"+selSt+"'>"+mesOpts+"</select></div>"
+    +"<div style='display:flex;align-items:center;gap:8px'><span style='font-size:12px;font-weight:600;color:#555'>Ano:</span><select id='cal-ano' onchange='rCal()' style='"+selSt+"'>"+anoOpts+"</select></div>"
+    +"<div style='display:flex;gap:16px;margin-left:auto;flex-wrap:wrap'>"
+    +"<span class='cal-leg'><span class='cal-dot' style='background:#127DCB'></span>Tempo de empresa <b style='color:"+B+"'>("+totalEmp+")</b></span>"
+    +"<span class='cal-leg'><span class='cal-dot' style='background:#1a7a4a'></span>Aniversario de vida <b style='color:"+GRN+"'>("+totalVida+")</b></span>"
+    +"</div></div></div>"
+    +"<div class='card'>"+grid+"</div>";
+}
+
+// ── PDF: ANIVERSARIANTES DO MES (Task 6) ──
+function gerarAniversariantesPDF(){
+  var now=new Date();
+  var selAno=parseInt(gv("cal-ano"),10);if(isNaN(selAno))selAno=now.getFullYear();
+  var selMes=gv("cal-mes");selMes=selMes===""?now.getMonth():parseInt(selMes,10);if(isNaN(selMes))selMes=now.getMonth();
+  var ev=anivDoMes(selAno,selMes);
+  if(!ev.empresa.length&&!ev.vida.length){alert("Nao ha aniversariantes em "+MOSF[selMes]+"/"+selAno+".");return;}
+
+  var K=mkPdfKit("Aniversariantes do Mes",MOSF[selMes]+" / "+selAno),doc=K.doc,C=K.C;
+  var y=K.header();
+  function ccCod(e){var c=e.ccid?DB.cc.find(function(x){return x.id===e.ccid;}):null;return c?c.cod:"-";}
+
+  // Cartoes-resumo
+  var cw=(K.cw-8)/2;
+  K.kpi(K.mg,y,cw,20,"Aniversario de tempo de empresa",String(ev.empresa.length),ev.empresa.length===1?"colaborador":"colaboradores",C.bl);
+  K.kpi(K.mg+cw+8,y,cw,20,"Aniversario de vida",String(ev.vida.length),ev.vida.length===1?"colaborador":"colaboradores",C.grn);
+  y+=27;
+
+  // Secao 1 — Tempo de empresa (azul)
+  K.section("Aniversario de tempo de empresa - "+MOSF[selMes]+"/"+selAno,y,C.bl);y+=4;
+  if(ev.empresa.length){
+    var colsE=[
+      {h:"Dia",k:"dia",w:16,al:"c",b:true},
+      {h:"Colaborador",k:"nome",w:88,b:true},
+      {h:"Funcao",k:"func",w:70},
+      {h:"C.Custo",k:"cc",w:26,al:"c"},
+      {h:"Admissao",k:"adm",w:32,al:"c"},
+      {h:"Completa",k:"anos",w:K.cw-16-88-70-26-32,al:"c",b:true,cor:function(){return C.bl;}}
+    ];
+    var rowsE=ev.empresa.map(function(x){return {dia:String(x.dia).padStart(2,"0"),nome:x.e.nome,func:x.e.func,cc:ccCod(x.e),adm:fmtD(x.data),anos:x.anos+" ano"+(x.anos>1?"s":"")};});
+    y=K.table(y,colsE,rowsE,{rh:5.8,titulo:"Aniversario de tempo de empresa",cor:C.bl});
+  }else{K.font(8.5);K.txt([170,170,170]);doc.text("Nenhum aniversario de tempo de empresa neste mes.",K.mg,y+6);y+=10;}
+  y+=8;
+
+  // Secao 2 — Aniversario de vida (verde)
+  if(y>K.H-40){doc.addPage();y=K.header();}
+  K.section("Aniversario de vida - "+MOSF[selMes]+"/"+selAno,y,C.grn);y+=4;
+  if(ev.vida.length){
+    var colsV=[
+      {h:"Dia",k:"dia",w:16,al:"c",b:true},
+      {h:"Colaborador",k:"nome",w:88,b:true},
+      {h:"Funcao",k:"func",w:70},
+      {h:"C.Custo",k:"cc",w:26,al:"c"},
+      {h:"Data",k:"data",w:32,al:"c"},
+      {h:"Idade",k:"anos",w:K.cw-16-88-70-26-32,al:"c",b:true,cor:function(){return C.grn;}}
+    ];
+    var rowsV=ev.vida.map(function(x){return {dia:String(x.dia).padStart(2,"0"),nome:x.e.nome,func:x.e.func,cc:ccCod(x.e),data:fmtD(x.data),anos:(x.anos>=0?x.anos+" anos":"-")};});
+    y=K.table(y,colsV,rowsV,{rh:5.8,titulo:"Aniversario de vida",cor:C.grn});
+  }else{K.font(8.5);K.txt([170,170,170]);doc.text("Nenhum aniversario de vida neste mes.",K.mg,y+6);}
+
+  K.finalizar("aniversariantes-"+selAno+"-"+String(selMes+1).padStart(2,"0")+".pdf");
 }
 
 
